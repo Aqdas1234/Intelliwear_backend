@@ -1,2 +1,2 @@
 # Intelliwear_backend
-An ecommerce website 
+An ecommerce website (Django)
