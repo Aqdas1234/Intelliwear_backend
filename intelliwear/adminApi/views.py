@@ -1,11 +1,12 @@
 from django.shortcuts import render
 from django.contrib.auth.models import User
 from rest_framework import viewsets, generics, status
-from .serializers import UserSerializer,ChangePasswordSerializer
+from .serializers import UserSerializer,ChangePasswordSerializer,ProductSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import BasePermission
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
+from .models import Product
 
 
 from django.contrib.auth.models import User
@@ -73,3 +74,9 @@ class AdminCustomerDetailView(APIView):
         customer = get_object_or_404(Customer, user__username=username)
         customer.user.delete()  
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    permission_classes = [IsSuperUser]  

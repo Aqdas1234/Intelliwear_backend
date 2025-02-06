@@ -30,7 +30,13 @@ class CustomerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Customer
-        fields = ['user', 'phone', 'address', 'profile_picture']
+        fields = ['user', 'phone', 'address', 'profile_picture', 'user_type']
+
+    def validate_user_type(self, value):
+        user = self.context['request'].user
+        if value == 'admin' and not user.is_superuser:
+            raise serializers.ValidationError("Only superusers can assign the 'admin' type.")
+        return value
 
     def create(self, validated_data):
         user_data = validated_data.pop('user')
