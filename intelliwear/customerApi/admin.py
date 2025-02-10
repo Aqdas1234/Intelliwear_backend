@@ -1,20 +1,45 @@
 from django.contrib import admin
-from .models import Customer
+from django.contrib.auth.admin import UserAdmin
+from .models import User, Customer
+
+@admin.register(User)
+class CustomUserAdmin(UserAdmin):
+    list_display = ('email',  'name', 'is_staff', 'is_superuser')
+    search_fields = ('email', 'name')
+    ordering = ('email',)
+
+    fieldsets = (
+        (None, {'fields': ('email', 'password')}),
+        ('Personal Info', {'fields': ('name',)}),
+        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Important Dates', {'fields': ('last_login', 'date_joined')}),
+    )
+    
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('email', 'password1', 'password2')}
+        ),
+    )
 
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('user', 'email', 'phone', 'address', 'profile_picture', 'user_type')  
-    list_filter = ('user_type',)  # Filter by user type
-    search_fields = ('user__username', 'user__email', 'phone', 'address')  # Improve search functionality
+    list_display = ('user','get_user_id', 'get_email', 'phone', 'address', 'profile_picture', 'user_type')  
+    list_filter = ('user_type',)  
+    search_fields = ('user__email', 'phone', 'address')  
 
-    def email(self, obj):
+    def get_email(self, obj):
         return obj.user.email  
-    email.admin_order_field = 'user__email'  # Allow sorting by email
-    email.short_description = 'Email'  
+    get_email.admin_order_field = 'user__email'  
+    get_email.short_description = 'Email'  
+
+    def get_user_id(self, obj):
+        return obj.user.id
+    get_user_id.admin_order_field = 'user__id'  
+    get_user_id.short_description = 'User ID'
 
     def get_readonly_fields(self, request, obj=None):
-        
         if not request.user.is_superuser:
-            return ('user_type',)
-        return ()
+            return ('user_type','get_user_id')
+        return ['get_user_id']
 
 admin.site.register(Customer, CustomerAdmin)

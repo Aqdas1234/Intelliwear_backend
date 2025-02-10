@@ -1,15 +1,13 @@
 from django.shortcuts import render
-from django.contrib.auth.models import User
+#from django.contrib.auth.models import User
 from rest_framework import viewsets, generics, status
-from .serializers import UserSerializer,ChangePasswordSerializer,ProductSerializer
+from .serializers import ProductSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import BasePermission
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from .models import Product
 
-
-from django.contrib.auth.models import User
 from customerApi.models import Customer
 from customerApi.serializers import CustomerSerializer
 #from .models import Product,Size,Color,Media
@@ -17,9 +15,32 @@ from customerApi.serializers import CustomerSerializer
 # Create your views here.
 class IsSuperUser(BasePermission):
     def has_permission(self, request, view):
-        return request.user and request.user.is_superuser
+        return bool(request.user and request.user.is_authenticated and hasattr(request.user, 'customer') and request.user.customer.user_type == 'admin')
+
+class ProfileView(APIView):
+    permission_classes = [IsSuperUser]
+
+    def get(self, request):
+        customer = Customer.objects.get(user=request.user)
+        serializer = CustomerSerializer(customer)
+        return Response(serializer.data)
+
+    def put(self, request):
+        customer = Customer.objects.get(user=request.user)
+        serializer = CustomerSerializer(customer, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    '''
+    def delete(self, request):
+        customer = Customer.objects.get(user=request.user)
+        customer.user.delete()  # Delete the associated User instance
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    '''
 
 
+'''
 class SellerProfileView(generics.RetrieveUpdateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -51,7 +72,7 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 
 
-
+'''
 
 
 class AdminCustomerListView(APIView):
@@ -65,13 +86,13 @@ class AdminCustomerListView(APIView):
 class AdminCustomerDetailView(APIView):
     permission_classes = [IsSuperUser]
 
-    def get(self, request, username):  # `pk` ki jagah `username` use kiya hai
-        customer = get_object_or_404(Customer, user__username=username)  # Look up by username
+    def get(self, request, user_id):  
+        customer = get_object_or_404(Customer, user__id=user_id)  
         serializer = CustomerSerializer(customer)
         return Response(serializer.data)
 
-    def delete(self, request, username):  # Same for delete
-        customer = get_object_or_404(Customer, user__username=username)
+    def delete(self, request, user_id): 
+        customer = get_object_or_404(Customer, user__id=user_id)
         customer.user.delete()  
         return Response(status=status.HTTP_204_NO_CONTENT)
 

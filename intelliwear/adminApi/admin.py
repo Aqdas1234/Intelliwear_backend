@@ -1,11 +1,12 @@
 from django.contrib import admin
-from .models import SellerProfile,Size,Media,Product,Color
+from .models import Size,Media,Product,Color
 # Register your models here.
+'''
 class SellerProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'store_name', 'phone_number', 'updated_at')
 
 admin.site.register(SellerProfile, SellerProfileAdmin)
-
+'''
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):

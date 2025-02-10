@@ -3,7 +3,7 @@ import uuid
 from django.contrib.auth.models import User
 
 # Create your models here.
-
+'''
 #Seller Profile Model
 class SellerProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='seller_profile') # Link to Django's User model
@@ -16,7 +16,7 @@ class SellerProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} - Seller"
 
-
+'''
 
 
 

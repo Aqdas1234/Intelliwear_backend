@@ -1,8 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import SellerProfile,Product,Size,Media,Color
+from .models import Product,Size,Media,Color
 from django.contrib.auth.password_validation import validate_password
-
+'''
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True, required=True)
     new_password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
@@ -35,7 +35,7 @@ class UserSerializer(serializers.ModelSerializer):
         seller_profile.save()
 
         return instance
-    
+'''    
 
 #product 
 
@@ -77,12 +77,12 @@ class ProductSerializer(serializers.ModelSerializer):
 
         # Create Size objects
         for size in sizes_data:
-            size_obj, _ = Size.objects.get_or_create(**size)  # Avoid duplicate sizes
+            size_obj, _ = Size.objects.get_or_create(**size)  
             product.sizes.add(size_obj)
 
         # Create Color objects
         for color in colors_data:
-            color_obj, _ = Color.objects.get_or_create(**color)  # Avoid duplicate colors
+            color_obj, _ = Color.objects.get_or_create(**color)  
             product.colors.add(color_obj)
 
         return product
@@ -96,19 +96,16 @@ class ProductSerializer(serializers.ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-
-        # Update Media (Clear old media and add new)
+        
         instance.media.all().delete()
         for media in media_data:
             Media.objects.create(product=instance, **media)
 
-        # Update Sizes (Clear old sizes and add new)
         instance.sizes.clear()
         for size in sizes_data:
             size_obj, _ = Size.objects.get_or_create(**size)
             instance.sizes.add(size_obj)
 
-        # Update Colors (Clear old colors and add new)
         instance.colors.clear()
         for color in colors_data:
             color_obj, _ = Color.objects.get_or_create(**color)

@@ -1,27 +1,47 @@
 from rest_framework import serializers
 from .models import Customer
-from django.contrib.auth.models import User
+#from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes
 from django.contrib.auth.tokens import default_token_generator
 from django.urls import reverse
+from rest_framework.validators import UniqueValidator
+from django.conf import settings  
+from django.contrib.auth import get_user_model
+
+
+User = get_user_model() 
+
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.CharField()
+    password = serializers.CharField(write_only=True)
 
 class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)  # 👈 Password field added
+    email = serializers.EmailField(validators=[UniqueValidator(queryset=User.objects.all())])  
+    password = serializers.CharField(write_only=True) 
+    confirm_password = serializers.CharField(write_only=True)  
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name', 'password']
-
+        fields = ['email',  'name', 'password','confirm_password']
+        extra_kwargs = {'email': {'required': True, 'allow_blank': False, 'unique': True}}
+    '''
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("Email already exists.")
         return value
+    '''
+    def validate(self, data):
+        if data.get('password') != data.get('confirm_password'):
+            raise serializers.ValidationError({"password": "Passwords do not match."})
+        return data
     
     def create(self, validated_data):
+        validated_data.pop('confirm_password')
         user = User(**validated_data)
-        user.set_password(validated_data['password'])  # 👈 Hash password before saving
+        user.set_password(validated_data['password'])  
         user.save()
         return user
 
@@ -33,27 +53,40 @@ class CustomerSerializer(serializers.ModelSerializer):
         fields = ['user', 'phone', 'address', 'profile_picture', 'user_type']
 
     def validate_user_type(self, value):
-        user = self.context['request'].user
-        if value == 'admin' and not user.is_superuser:
-            raise serializers.ValidationError("Only superusers can assign the 'admin' type.")
+        request = self.context.get('request', None)
+        if request and getattr(request, 'user', None):
+            if value == 'admin' and not request.user.is_superuser:
+                raise serializers.ValidationError("Only superusers can assign the 'admin' type.")
         return value
 
     def create(self, validated_data):
         user_data = validated_data.pop('user')
-        user = UserSerializer().create(user_data)  
+        user_serializer = UserSerializer(data=user_data)  
+        if user_serializer.is_valid(raise_exception=True):  
+            user = user_serializer.save()
         customer = Customer.objects.create(user=user, **validated_data)
         return customer
 
     def update(self, instance, validated_data):
         user_data = validated_data.pop('user', None)
+        user = instance.user
+
         if user_data:
-            user = instance.user
+            confirm_password = user_data.pop('confirm_password', None)  
+            password = user_data.get('password', None)
+            if password:
+                if confirm_password is None or password != confirm_password:
+                    raise serializers.ValidationError({"password": "Passwords do not match."})
+                user.set_password(password)  
+        
+            updated = False
             for attr, value in user_data.items():
-                if attr == 'password':
-                    user.set_password(value)  
-                else:
+                if getattr(user, attr) != value:  
                     setattr(user, attr, value)
-            user.save()
+                    updated = True
+
+            if updated or password:  
+                user.save()
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -62,9 +95,6 @@ class CustomerSerializer(serializers.ModelSerializer):
 
 
   
-
-
-
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(required=True)
@@ -84,14 +114,11 @@ class ChangePasswordSerializer(serializers.Serializer):
     
 #forgot Password
 
-
-
-
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
     def validate_email(self, value):
-        """Check if user with this email exists"""
+        
         if not User.objects.filter(email=value).exists():
             raise serializers.ValidationError("User with this email does not exist.")
         return value
@@ -114,3 +141,41 @@ class PasswordResetSerializer(serializers.Serializer):
             recipient_list=[email],
             fail_silently=False,
         )
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, min_length=6)
+    confirm_password = serializers.CharField(write_only=True, min_length=6)
+
+    def validate(self, data):
+        if data["new_password"] != data["confirm_password"]:
+            raise serializers.ValidationError({"error": "Passwords do not match"})
+        return data
+
+
+
+from adminApi.models import Product, Media
+
+class MediaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Media
+        fields = ['file', 'media_type']
+
+
+class ProductListSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'price', 'description', 'image']
+
+    def get_image(self, obj):
+        first_image = obj.media.filter(media_type='IMAGE').first()
+        return first_image.file.url if first_image else None
+
+
+class ProductDetailSerializer(serializers.ModelSerializer):
+    media = MediaSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'price', 'description', 'media']
