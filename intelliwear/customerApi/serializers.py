@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Customer
+from .models import Customer,Cart
 #from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
@@ -179,3 +179,12 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = ['id', 'name', 'price', 'description', 'media']
+
+
+#Cart Serializer
+class CartSerializer(serializers.ModelSerializer):
+    product_name = serializers.ReadOnlyField(source='product.name')
+
+    class Meta:
+        model = Cart
+        fields = ['id', 'product', 'product_name', 'quantity']

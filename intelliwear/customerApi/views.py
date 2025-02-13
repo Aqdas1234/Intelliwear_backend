@@ -5,8 +5,8 @@ from rest_framework.response import Response
 from rest_framework import status,generics
 from rest_framework.permissions import IsAuthenticated,BasePermission
 #from django.contrib.auth.models import User
-from .models import Customer
-from .serializers import CustomerSerializer,ProductListSerializer,ProductDetailSerializer
+from .models import Customer,Cart
+from .serializers import CustomerSerializer,ProductListSerializer,ProductDetailSerializer,CartSerializer
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
 class IsCustomerUser(BasePermission):
@@ -55,3 +55,25 @@ class CategoryProductsListView(generics.ListAPIView):
 class ProductDetailView(generics.RetrieveAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductDetailSerializer
+
+
+#Cart 
+
+class AddToCartView(APIView):
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
+    serializer_class = CartSerializer
+
+    def post(self, request):
+        product_id = request.data.get('product_id')
+        quantity = request.data.get('quantity', 1)
+
+        try:
+            product = Product.objects.get(id=product_id)
+            cart_item, created = Cart.objects.get_or_create(user=request.user, product=product)
+            if not created:
+                cart_item.quantity += int(quantity)
+                cart_item.save()
+            return Response({"message": "Product added to cart"}, status=status.HTTP_200_OK)
+        except Product.DoesNotExist:
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
