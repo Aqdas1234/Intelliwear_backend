@@ -1,6 +1,6 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
-from .models import Product,Size,Media,Color
+#from django.contrib.auth.models import User
+from .models import Product,Size,Media,Color,Carousel
 from django.contrib.auth.password_validation import validate_password
 '''
 class ChangePasswordSerializer(serializers.Serializer):
@@ -112,3 +112,8 @@ class ProductSerializer(serializers.ModelSerializer):
             instance.colors.add(color_obj)
 
         return instance
+    
+class CarouselSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Carousel
+        fields = '__all__'

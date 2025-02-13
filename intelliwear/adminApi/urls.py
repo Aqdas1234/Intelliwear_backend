@@ -1,11 +1,11 @@
 from django.urls import path,include
 from rest_framework.routers import DefaultRouter
-from .views import ProfileView,AdminCustomerListView,AdminCustomerDetailView,ProductViewSet
+from .views import ProfileView,AdminCustomerListView,AdminCustomerDetailView,ProductViewSet,CarouselViewSet
 
 router = DefaultRouter()
 router.register(r'products', ProductViewSet, basename='product')
-#router = DefaultRouter()
-#router.register(r'products', ProductViewSet, basename='product')
+router.register(r'carousel', CarouselViewSet,basename='Carousel')
+
 
 urlpatterns = [
     path('profile/', ProfileView.as_view(), name='seller-profile-update'),
