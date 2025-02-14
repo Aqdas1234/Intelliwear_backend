@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Customer,Cart
+from .models import Customer,Cart,Order,OrderItem
 #from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
@@ -137,7 +137,7 @@ class PasswordResetSerializer(serializers.Serializer):
         send_mail(
             subject="Password Reset Request",
             message=f"Click the link below to reset your password:\n{reset_link}",
-            from_email="your-email@gmail.com",
+            from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[email],
             fail_silently=False,
         )
@@ -188,3 +188,16 @@ class CartSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cart
         fields = ['id', 'product', 'product_name', 'quantity']
+
+#place order
+class OrderItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderItem
+        fields = ['product', 'quantity', 'price']
+
+class OrderSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Order
+        fields = ['id', 'user', 'total_price', 'status', 'created_at', 'items']

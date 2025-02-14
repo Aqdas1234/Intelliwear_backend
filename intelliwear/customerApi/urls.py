@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import CustomerProfileView,CategoryProductsListView,ProductDetailView,AddToCartView
+from .views import CustomerProfileView,CategoryProductsListView,ProductDetailView,AddToCartView,PlaceOrderView,OrderListView
 
 urlpatterns = [
     #path('register/', CustomerRegisterView.as_view(), name='customer-register'),
@@ -9,5 +9,7 @@ urlpatterns = [
     path('api/product/<uuid:pk>/', ProductDetailView.as_view(), name='product-detail'),
 
     path('cart/', AddToCartView.as_view(), name='add-to-cart'),
+    path('place-order/', PlaceOrderView.as_view(), name='place-order'),
+    path('orders/', OrderListView.as_view(), name='order-list'), 
 
 ]

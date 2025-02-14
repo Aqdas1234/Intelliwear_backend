@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, Customer,Cart
+from .models import User, Customer,Cart,Order,OrderItem
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
@@ -44,8 +44,20 @@ class CustomerAdmin(admin.ModelAdmin):
 
 admin.site.register(Customer, CustomerAdmin)
 
-
+#cart
 @admin.register(Cart)
 class CartAdmin(admin.ModelAdmin):
     list_display = ('user', 'product', 'quantity', 'added_at')  
     search_fields = ('user__email', 'product__name')
+
+#order & order item
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'total_price', 'created_at', 'status')
+    list_filter = ('status', 'created_at')
+    search_fields = ('user__username', 'id')
+
+@admin.register(OrderItem)
+class OrderItemAdmin(admin.ModelAdmin):
+    list_display = ('id', 'order', 'product', 'quantity', 'price')
+    search_fields = ('order__id', 'product__name')
