@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Size,Media,Product,Color
+from .models import Size,Media,Product,Color,Carousel
 # Register your models here.
 '''
 class SellerProfileAdmin(admin.ModelAdmin):
@@ -31,3 +31,8 @@ class SizeAdmin(admin.ModelAdmin):
 class ColorAdmin(admin.ModelAdmin):
     list_display = ('name', )
     search_fields = ('name', )
+
+@admin.register(Carousel)
+class CarouselAdmin(admin.ModelAdmin):
+    list_display = ('title', 'image', 'created_at')
+    search_fields = ('title',)

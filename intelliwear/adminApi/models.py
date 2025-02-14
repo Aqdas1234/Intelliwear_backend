@@ -82,3 +82,12 @@ class Product(models.Model):
 
     def __str__(self):
         return f"{self.get_product_type_display()} - {self.name} ({self.get_gender_display()})"
+    
+class Carousel(models.Model):
+    title = models.CharField(max_length=255)
+    image = models.ImageField(upload_to='carousel_images/')
+    #link = models.URLField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title

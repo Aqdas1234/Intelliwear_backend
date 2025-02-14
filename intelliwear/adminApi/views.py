@@ -1,12 +1,12 @@
 from django.shortcuts import render
 #from django.contrib.auth.models import User
 from rest_framework import viewsets, generics, status
-from .serializers import ProductSerializer
+from .serializers import ProductSerializer,CarouselSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import BasePermission
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-from .models import Product
+from .models import Product,Carousel
 
 from customerApi.models import Customer
 from customerApi.serializers import CustomerSerializer
@@ -101,3 +101,8 @@ class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [IsSuperUser]  
+
+class CarouselViewSet(viewsets.ModelViewSet):
+    queryset = Carousel.objects.all()
+    serializer_class = CarouselSerializer
+    permission_classes = [IsSuperUser]
