@@ -80,7 +80,7 @@ class Product(models.Model):
     stock = models.PositiveIntegerField(default=0)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     product_type = models.CharField(max_length=12, choices=PRODUCT_TYPES)
-    image = models.ImageField(upload_to='product_main_images/', blank=False, null=False)
+    image = models.ImageField(upload_to='product_main_images/', blank=False, null=True)
     sizes = models.ManyToManyField(Size, blank=True, related_name='products')  # Many-to-Many (valid)
     colors = models.ManyToManyField(Color, blank=True, related_name='products')  # Many-to-Many (valid)
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
