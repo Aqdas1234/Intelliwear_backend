@@ -44,6 +44,15 @@ class MediaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Media
         fields = ['id', 'file', 'media_type']
+    
+    def validate(self, data):
+        product = data.get("product")
+        media_count = Media.objects.filter(product=product).count()
+
+        if media_count >= 4:
+            raise serializers.ValidationError("You can only upload a maximum of 4 additional media files per product.")
+
+        return data
 
 class SizeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -62,7 +71,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'description','stock', 'price', 'product_type', 'sizes', 'colors', 'media', 'gender', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description','stock', 'price', 'product_type','image', 'sizes', 'colors', 'media', 'gender', 'created_at', 'updated_at']
 
     def create(self, validated_data):
         media_data = validated_data.pop('media', [])

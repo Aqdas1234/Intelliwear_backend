@@ -7,7 +7,6 @@ from rest_framework.permissions import BasePermission
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from .models import Product,Carousel
-
 from customerApi.models import Customer
 from customerApi.serializers import CustomerSerializer
 #from .models import Product,Size,Color,Media

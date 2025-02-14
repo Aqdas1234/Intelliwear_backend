@@ -10,7 +10,7 @@ admin.site.register(SellerProfile, SellerProfileAdmin)
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'product_type', 'price', 'gender', 'created_at', 'updated_at')
+    list_display = ('name', 'product_type', 'price','image', 'gender', 'created_at', 'updated_at')
     search_fields = ('name', 'product_type')
     list_filter = ('product_type', 'gender', 'created_at')
     filter_horizontal = ('sizes', 'colors')  # Allow many-to-many selection in admin
