@@ -7,6 +7,9 @@ class SellerProfileAdmin(admin.ModelAdmin):
 
 admin.site.register(SellerProfile, SellerProfileAdmin)
 '''
+class MediaInline(admin.TabularInline):  
+    model = Media  
+    extra = 1 
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
@@ -15,6 +18,7 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ('product_type', 'gender', 'created_at')
     filter_horizontal = ('sizes', 'colors')  # Allow many-to-many selection in admin
     readonly_fields = ('created_at', 'updated_at')
+    inlines = [MediaInline]
 
 @admin.register(Media)
 class MediaAdmin(admin.ModelAdmin):
