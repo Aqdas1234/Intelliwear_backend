@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Customer,Cart,Order,OrderItem
+from .models import Customer,Cart,Order,OrderItem,Review,ReviewImage
 #from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
@@ -201,3 +201,35 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = ['id', 'user', 'total_price', 'status', 'created_at', 'items']
+
+#Review
+class ReviewImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReviewImage
+        fields = ['id', 'image']
+
+class ReviewSerializer(serializers.ModelSerializer):
+    user = serializers.ReadOnlyField(source='user.email')
+    images = ReviewImageSerializer(many=True, read_only=True)  # Nested images
+
+    class Meta:
+        model = Review
+        fields = ['id', 'user', 'product', 'rating', 'comment', 'created_at', 'images']
+
+class ReviewCreateSerializer(serializers.ModelSerializer):
+    images = serializers.ListField(
+        child=serializers.ImageField(), write_only=True, required=False
+    )
+
+    class Meta:
+        model = Review
+        fields = ['id', 'product', 'rating', 'comment', 'images']
+
+    def create(self, validated_data):
+        images = validated_data.pop('images', [])
+        review = Review.objects.create(**validated_data)
+        
+        for image in images:
+            ReviewImage.objects.create(review=review, image=image)
+
+        return review
