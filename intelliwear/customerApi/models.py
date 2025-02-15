@@ -74,7 +74,38 @@ class Cart(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.product.name} ({self.quantity})"
+
+
+class ShippingAddress(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    order = models.OneToOneField('Order', on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    city = models.CharField(max_length=100)
+    address = models.TextField()
+    phone = models.CharField(max_length=15)
+
+    def __str__(self):
+        return f"{self.name} - {self.city}"
     
+class Payment(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    order = models.OneToOneField('Order', on_delete=models.CASCADE)
+    payment_method = models.CharField(max_length=50, choices=[
+        ('easypaisa', 'Easypaisa'),
+        ('jazzcash', 'JazzCash'),
+        ('credit_card', 'Credit Card'),
+        ('debit_card', 'Debit Card'),
+        ('cod', 'Cash on Delivery')
+    ])
+    transaction_id = models.CharField(max_length=255, blank=True, null=True)
+    payment_status = models.CharField(max_length=20, default="Pending")
+
+    def __str__(self):
+        return f"Payment {self.id} - {self.user.username} - {self.payment_method}"
+
+
+
+
 class Order(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),

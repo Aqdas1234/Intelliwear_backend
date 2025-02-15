@@ -189,3 +189,14 @@ EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER 
 
 #EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+#payment Info
+TWOCHECKOUT_MERCHANT_CODE = "your_merchant_code"
+TWOCHECKOUT_SECRET_KEY = "your_secret_key"
+TWOCHECKOUT_PUBLISHABLE_KEY = "your_publishable_key"
+TWOCHECKOUT_SANDBOX = True 
+TWOCHECKOUT_API_URL = "https://api.2checkout.com/rest/6.0/orders/"
+TWOCHECKOUT_RETURN_URL = "https://yourfrontend.com/payment-success"
+TWOCHECKOUT_CANCEL_URL = "https://yourfrontend.com/payment-failed"
+
+DELIVERY_PARTNER_API_URL = "https://delivery-partner-api.com/notify"
