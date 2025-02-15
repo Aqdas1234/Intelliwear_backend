@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, Customer,Cart,Order,OrderItem
+from .models import User, Customer,Cart,Order,OrderItem,ReviewImage,Review
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
@@ -61,3 +61,20 @@ class OrderAdmin(admin.ModelAdmin):
 class OrderItemAdmin(admin.ModelAdmin):
     list_display = ('id', 'order', 'product', 'quantity', 'price')
     search_fields = ('order__id', 'product__name')
+
+#Reviews
+class ReviewImageInline(admin.TabularInline):  
+    model = ReviewImage
+    extra = 1  # Ek extra empty field dikhayega new images add karne ke liye
+
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ('user', 'product', 'rating', 'created_at')  # Admin panel mein ye fields show hongi
+    search_fields = ('user__email', 'product__name', 'comment')  # Search enable karega
+    list_filter = ('rating', 'created_at')  # Filters add karega
+    inlines = [ReviewImageInline]  # Review ke saath images dikhayega
+
+class ReviewImageAdmin(admin.ModelAdmin):
+    list_display = ('review', 'image')  # Image field admin panel me show karega
+
+admin.site.register(Review, ReviewAdmin)
+admin.site.register(ReviewImage, ReviewImageAdmin)

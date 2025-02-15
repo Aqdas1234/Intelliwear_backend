@@ -35,9 +35,7 @@ class Media(models.Model):
     media_type = models.CharField(max_length=10, choices=MEDIA_TYPES)
     #created_at = models.DateTimeField(auto_now_add=True)
     def clean(self):
-        """Ensure max 4 additional media files per product."""
-        media_count = Media.objects.filter(product=self.product).count()
-        if media_count >= 4:
+        if self.product.media.count() >= 4:  
             raise ValidationError("You can only upload a maximum of 4 additional media files per product.")
 
     def __str__(self):
