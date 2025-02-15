@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Customer,Cart,Order,OrderItem,Review,ReviewImage
+from .models import Customer,Cart,Order,OrderItem,Review,ReviewImage,ShippingAddress,Payment
 #from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
@@ -195,13 +195,33 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = ['product', 'quantity', 'price']
 
+class ShippingAddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShippingAddress
+        fields = ['name', 'city', 'address', 'phone']
+
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ['payment_method', 'transaction_id', 'payment_status']
+
+
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
+    shipping_address = serializers.SerializerMethodField()
+    payment = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
-        fields = ['id', 'user', 'total_price', 'status', 'created_at', 'items']
+        fields = ['id', 'user', 'total_price', 'status', 'created_at', 'items', 'shipping_address', 'payment']
+    def get_shipping_address(self, obj):
+        shipping = ShippingAddress.objects.filter(order=obj).first()
+        return ShippingAddressSerializer(shipping).data if shipping else None
 
+    def get_payment(self, obj):
+        payment = Payment.objects.filter(order=obj).first()
+        return PaymentSerializer(payment).data if payment else None
+    
 #Review
 class ReviewImageSerializer(serializers.ModelSerializer):
     class Meta:

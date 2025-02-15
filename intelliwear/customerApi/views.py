@@ -1,5 +1,10 @@
+import json
+import time
+from django.db import transaction
 from django.forms import ValidationError
+import uuid
 from django.shortcuts import get_object_or_404
+import requests
 from rest_framework.views import APIView
 from django.core.mail import send_mail
 from django.conf import settings
@@ -9,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework import status,generics, pagination
 from rest_framework.permissions import IsAuthenticated,BasePermission,AllowAny, IsAuthenticatedOrReadOnly
 #from django.contrib.auth.models import User
-from .models import Customer,Cart,OrderItem,Review,Order
+from .models import Customer,Cart,OrderItem,Review,Order,Payment,ShippingAddress
 from .serializers import CustomerSerializer,ProductListSerializer,ProductDetailSerializer,CartSerializer,OrderSerializer,ReviewCreateSerializer,ReviewSerializer
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
@@ -82,36 +87,159 @@ class AddToCartView(APIView):
         except Product.DoesNotExist:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
 
+
+class GoToCheckoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        cart_items = Cart.objects.filter(user=request.user)
+        if not cart_items.exists():
+            return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
+        product_ids = list(cart_items.values_list("product__id", flat=True))
+        return Response({"product_ids": product_ids}, status=status.HTTP_200_OK)
+    
 #place Order
 class PlaceOrderView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        selected_product_ids = request.data.get('product_ids', [])  
+        selected_product_ids = request.data.get('product_ids', [])
         if not selected_product_ids:
             return Response({"error": "No products selected for order"}, status=status.HTTP_400_BAD_REQUEST)
+        
         cart_items = Cart.objects.filter(user=request.user, product__id__in=selected_product_ids)
         if not cart_items.exists():
             return Response({"error": "Selected products not in cart"}, status=status.HTTP_400_BAD_REQUEST)
+        
         total_price = sum(item.product.price * item.quantity for item in cart_items)
-        order = Order.objects.create(user=request.user, total_price=total_price)
-        order_items = [
-            OrderItem(
-                order=order,
-                product=cart_item.product,
-                quantity=cart_item.quantity,
-                price=cart_item.product.price
-            )
-            for cart_item in cart_items
-        ]
-        OrderItem.objects.bulk_create(order_items)
-        cart_items.delete()
-        subject = "Order Confirmation"
-        message = f"Dear {request.user.name},\n\nYour order (ID: {order.id}) has been placed successfully!\nTotal Amount: ${total_price}\n\nThank you for shopping with IntelliWear!"
-        recipient_list = [request.user.email]
-        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, recipient_list)
-        return Response({"message": "Order placed successfully", "order_id": order.id}, status=status.HTTP_201_CREATED)
-    
+        payment_method = request.data.get("payment_method", "cod")
+
+        try:
+            with transaction.atomic():
+                order = Order.objects.create(user=request.user, total_price=total_price, status="pending")
+                OrderItem.objects.bulk_create([
+                    OrderItem(order=order, product=item.product, quantity=item.quantity, price=item.product.price)
+                    for item in cart_items
+                ])
+                ShippingAddress.objects.create(
+                    user=request.user, 
+                    order=order,
+                    name=request.data.get("name", request.user.username),
+                    city=request.data.get("city", ""),
+                    address=request.data.get("address", ""),
+                    phone=request.data.get("phone", "")
+                )
+                transaction_id = str(uuid.uuid4())
+                if payment_method == "cod":
+                    payment = Payment.objects.create(
+                        user=request.user,
+                        order=order,
+                        payment_method="COD",
+                        transaction_id=transaction_id,
+                        payment_status="Completed"
+                    )
+                    order.status = "shipped"
+                    order.save()
+                    return Response({"message": "Order placed successfully", "order_id": order.id}, status=status.HTTP_201_CREATED)
+
+                elif payment_method in ["jazzcash", "easypaisa", "debitcard"]:
+                    payload = {
+                        "merchantCode": settings.TWOCHECKOUT_SELLER_ID,
+                        "currency": "PKR",  # Pakistani Rupees
+                        "amount": str(total_price),
+                        "returnUrl": f"{settings.TWOCHECKOUT_RETURN_URL}?order_id={order.id}",
+                        "cancelUrl": settings.TWOCHECKOUT_CANCEL_URL,
+                        "orderNumber": str(order.id),
+                        "paymentMethod": payment_method,  # JazzCash, EasyPaisa, or Debit Card
+                        "lineItems": [{"name": f"Order #{order.id}", "price": total_price, "quantity": 1}],
+                        "billingAddress": {
+                            "name": request.user.name,
+                            "email": request.user.email
+                        }
+                    }
+                    headers = {
+                        "Content-Type": "application/json",
+                        "X-Avangate-Authentication": settings.TWOCHECKOUT_PRIVATE_KEY,
+                    }
+                    
+                    response = requests.post(settings.TWOCHECKOUT_API_URL, json=payload, headers=headers)
+                    if response.status_code == 201:
+                        payment_data = response.json()
+                        payment_url = payment_data.get("paymentUrl")
+                        Payment.objects.create(
+                            user=request.user,
+                            order=order,
+                            payment_method=payment_method,
+                            transaction_id=transaction_id,
+                            payment_status="Pending"
+                        )
+
+                        return Response({"message": "Redirect to 2Checkout for payment", "payment_url": payment_url}, status=status.HTTP_201_CREATED)
+                    else:
+                        order.status = "canceled"
+                        order.save()
+                        return Response({"error": "2Checkout payment initiation failed"}, status=status.HTTP_400_BAD_REQUEST)
+
+                else:
+                    return Response({"error": "Invalid payment method"}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({"error": f"Order placement failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class CheckoutWebhookView(APIView):
+    def post(self, request):
+        data = json.loads(request.body)
+        transaction_id = data.get("transaction_id")
+        payment_status = data.get("status")
+        order_id = data.get("order_id")
+        
+        try:
+            with transaction.atomic():
+                payment = Payment.objects.get(transaction_id=transaction_id, order__id=order_id)
+                order = payment.order
+                user = order.user
+
+                if payment_status == "Completed":
+                    payment.payment_status = "Completed"
+                    order.status = "shipped"
+                    ordered_products = order.orderitem_set.values_list('product_id', flat=True)
+                    Cart.objects.filter(user=order.user, product_id__in=ordered_products).delete()
+                    self.send_order_confirmation_email(user, order)
+                    self.notify_delivery_partner(order)
+                else:
+                    payment.payment_status = "Failed"
+                    order.status = "canceled"
+
+                payment.save()
+                order.save()
+
+                return Response({"message": "Webhook processed successfully"}, status=status.HTTP_200_OK)
+
+        except Payment.DoesNotExist:
+            return Response({"error": "Invalid transaction ID or order ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+    def send_order_confirmation_email(self, user, order):
+        """Send order confirmation email to the user."""
+        subject = "Order Confirmation - IntelliWear"
+        message = f"Dear {user.name},\n\nYour order #{order.id} has been placed successfully!\n\nOrder Details:\nTotal: ${order.total_price}\nStatus: {order.status}\n\nThank you for shopping with us!"
+        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email])
+
+    def notify_delivery_partner(self, order):
+        """Notify the delivery partner via an API call."""
+        delivery_data = {
+            "order_id": order.id,
+            "customer_name": order.user.name,
+            "customer_address": order.shippingaddress.address,
+            "customer_phone": order.shippingaddress.phone,
+            "products": list(order.orderitem_set.values("product__name", "quantity")),
+        }
+
+        for _ in range(3):  
+            response = requests.post(settings.DELIVERY_PARTNER_API_URL, json=delivery_data)
+            if response.status_code == 200:
+                return 
+            time.sleep(2) 
+
 class OrderListView(APIView):
     permission_classes = [IsAuthenticated]
 
