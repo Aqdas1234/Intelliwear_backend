@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, Customer,Cart,Order,OrderItem,ReviewImage,Review
+from .models import User, Customer,Cart,Order,OrderItem,ReviewImage,Review,Payment,ShippingAddress
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
@@ -78,3 +78,15 @@ class ReviewImageAdmin(admin.ModelAdmin):
 
 admin.site.register(Review, ReviewAdmin)
 admin.site.register(ReviewImage, ReviewImageAdmin)
+
+@admin.register(ShippingAddress)
+class ShippingAddressAdmin(admin.ModelAdmin):
+    list_display = ('user', 'order', 'name', 'city', 'phone')
+    search_fields = ('user__email', 'name', 'city', 'phone')
+    list_filter = ('city',)
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ('user', 'order', 'payment_method', 'transaction_id', 'payment_status')
+    search_fields = ('user__email', 'transaction_id')
+    list_filter = ('payment_status', 'payment_method')
