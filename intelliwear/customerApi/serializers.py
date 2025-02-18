@@ -13,7 +13,6 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model() 
 
-
 class LoginSerializer(serializers.Serializer):
     email = serializers.CharField()
     password = serializers.CharField(write_only=True)
@@ -46,7 +45,7 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 class CustomerSerializer(serializers.ModelSerializer):
-    user = UserSerializer()  
+    user = UserSerializer()
 
     class Meta:
         model = Customer

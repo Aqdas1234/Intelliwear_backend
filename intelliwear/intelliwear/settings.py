@@ -13,6 +13,7 @@ import environ
 from pathlib import Path
 import os
 from decouple import Config
+from datetime import timedelta
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -48,6 +49,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework_simplejwt',
     'customerApi',
     'adminApi',
     
@@ -173,7 +175,13 @@ REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': (
         'rest_framework.renderers.BrowsableAPIRenderer',
         'rest_framework.renderers.JSONRenderer',
-    )
+    ),
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.AllowAny',  # Allow unauthenticated access by default
+    ),
 }
 
 
@@ -198,3 +206,8 @@ TWOCHECKOUT_RETURN_URL = "https://yourfrontend.com/payment-success"
 TWOCHECKOUT_CANCEL_URL = "https://yourfrontend.com/payment-failed"
 
 DELIVERY_PARTNER_API_URL = "https://delivery-partner-api.com/notify"
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME':timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME':timedelta(days=7),
+}
