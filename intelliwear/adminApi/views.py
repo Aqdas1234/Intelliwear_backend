@@ -1,6 +1,6 @@
 from django.shortcuts import render
 #from django.contrib.auth.models import User
-from rest_framework import viewsets, generics, status
+from rest_framework import viewsets, generics, status , filters
 from .serializers import ProductSerializer,CarouselSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import BasePermission
@@ -9,6 +9,8 @@ from django.shortcuts import get_object_or_404
 from .models import Product,Carousel
 from customerApi.models import Customer
 from customerApi.serializers import CustomerSerializer
+from django_filters.rest_framework import DjangoFilterBackend
+from .paginations import MyLimitOffsetPagination
 #from .models import Product,Size,Color,Media
 
 # Create your views here.
@@ -100,6 +102,14 @@ class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [IsSuperUser]  
+
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['product_type']  
+
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']  
+
+    pagination_class = MyLimitOffsetPagination
 
 class CarouselViewSet(viewsets.ModelViewSet):
     queryset = Carousel.objects.all()
