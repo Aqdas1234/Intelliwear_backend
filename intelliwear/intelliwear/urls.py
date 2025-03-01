@@ -2,6 +2,22 @@ from .views import RegisterView,LoginView,LogoutView,ChangePasswordView,Password
 from django.contrib import admin
 from django.urls import path,include
 from rest_framework_simplejwt.views import TokenObtainPairView , TokenRefreshView
+from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
+from rest_framework import permissions
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
+schema_view = get_schema_view(
+    openapi.Info(
+        title = "Intelliwear Api",
+        default_version= 'v1',
+        description= "Api Documentation of Intelliwear",
+    
+    ),
+    public=True,
+    authentication_classes=[JWTAuthentication],
+    permission_classes=(permissions.AllowAny,),
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -17,4 +33,7 @@ urlpatterns = [
     path('adminApi/', include('adminApi.urls')),
     path('customer/', include('customerApi.urls')),
     path('api-auth/', include('rest_framework.urls')),
+
+    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='swagger-ui'),
+
 ]

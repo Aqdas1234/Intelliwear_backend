@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'customerApi',
     'adminApi',
+    'drf_yasg',
     
 ]
 
@@ -212,4 +213,15 @@ DELIVERY_PARTNER_API_URL = "https://delivery-partner-api.com/notify"
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME':timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME':timedelta(days=7),
+}
+
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'description': "Enter token in the format: Bearer <your_token>"
+        }
+    }
 }
