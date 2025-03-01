@@ -11,14 +11,18 @@ from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 
+from drf_yasg.utils import swagger_auto_schema
 
 User = get_user_model() 
-
 
 class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
-    serializer_class = CustomerSerializer
+
+    @swagger_auto_schema(
+        request_body=CustomerSerializer,
+        responses={201: CustomerSerializer(), 400: "Invalid data"}
+    )
 
     def post(self, request):
         serializer = CustomerSerializer(data=request.data)
@@ -30,10 +34,21 @@ class RegisterView(APIView):
 class LoginView(APIView):
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
     serializer_class = LoginSerializer
+
+    @swagger_auto_schema(
+        request_body=LoginSerializer,
+        responses={
+            200: "Login successful, redirecting...",
+            400: "Invalid credentials"
+        }
+    )
+
     def post(self, request):
         email = request.data.get("email")
         password = request.data.get("password")
         user = authenticate(request, email=email, password=password)
+
+        print("user info" , email , password , user)
 
         if user:
             login(request, user)  
@@ -50,6 +65,11 @@ class LoginView(APIView):
 
     
 class LogoutView(APIView):
+
+    @swagger_auto_schema(
+        responses={200: "Logged out successfully"}
+    )
+
     def post(self, request):
         logout(request)  
         return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
@@ -58,7 +78,11 @@ class LogoutView(APIView):
 class ChangePasswordView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
-    serializer_class = ChangePasswordSerializer
+    
+    @swagger_auto_schema(
+        request_body=ChangePasswordSerializer,
+        responses={200: "Password updated successfully", 400: "Invalid data"}
+    )
 
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
@@ -71,7 +95,11 @@ class ChangePasswordView(APIView):
 class PasswordResetRequestView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
-    serializer_class = PasswordResetSerializer
+    
+    @swagger_auto_schema(
+        request_body=PasswordResetSerializer,
+        responses={200: "Password reset email sent!", 400: "Invalid data"}
+    )
 
     def post(self, request):
         serializer = PasswordResetSerializer(data=request.data)
@@ -83,7 +111,16 @@ class PasswordResetRequestView(APIView):
 class PasswordResetConfirmView(APIView):
     permission_classes = [permissions.AllowAny]  # No authentication required
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]  # DRF HTML form support
-    serializer_class = PasswordResetConfirmSerializer
+    
+    @swagger_auto_schema(
+        request_body=PasswordResetConfirmSerializer,
+        responses={200: "Password reset successful", 400: "Invalid token or data"},
+        # manual_parameters=[
+        #     openapi.Parameter('uidb64', openapi.IN_PATH, description="Base64 encoded User ID", type=openapi.TYPE_STRING),
+        #     openapi.Parameter('token', openapi.IN_PATH, description="Password reset token", type=openapi.TYPE_STRING),
+        # ]
+    )
+
     def post(self, request, uidb64, token):
         try:
             uid = force_str(urlsafe_base64_decode(uidb64))

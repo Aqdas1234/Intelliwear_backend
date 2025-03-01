@@ -13,6 +13,9 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .paginations import MyLimitOffsetPagination
 #from .models import Product,Size,Color,Media
 
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+
 # Create your views here.
 class IsSuperUser(BasePermission):
     def has_permission(self, request, view):
@@ -21,12 +24,24 @@ class IsSuperUser(BasePermission):
 class ProfileView(APIView):
     permission_classes = [IsSuperUser]
 
+    @swagger_auto_schema(
+        responses={200: CustomerSerializer()},
+        operation_description="Get the profile details of the logged-in admin."
+    )
+
     def get(self, request):
         customer = Customer.objects.get(user=request.user)
         serializer = CustomerSerializer(customer)
         return Response(serializer.data)
 
-    def put(self, request):
+    
+    @swagger_auto_schema(
+        request_body=CustomerSerializer,
+        responses={200: CustomerSerializer()},
+        operation_description="Update the profile details of the logged-in admin."
+    )    
+
+    def patch(self, request):
         customer = Customer.objects.get(user=request.user)
         serializer = CustomerSerializer(customer, data=request.data, partial=True)
         if serializer.is_valid():
@@ -78,6 +93,16 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 class AdminCustomerListView(APIView):
     permission_classes = [IsSuperUser]
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                "search", openapi.IN_QUERY, description="Search customers by name",
+                type=openapi.TYPE_STRING
+            )
+        ],
+        responses={200: CustomerSerializer(many=True)}
+    )
 
     def get(self, request):
         customers = Customer.objects.all()
