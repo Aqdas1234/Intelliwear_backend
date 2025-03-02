@@ -180,7 +180,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
-    ]
+    ],
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
@@ -215,10 +215,12 @@ TWOCHECKOUT_CANCEL_URL = "https://yourfrontend.com/payment-failed"
 
 DELIVERY_PARTNER_API_URL = "https://delivery-partner-api.com/notify"
 
-STRIPE_SECRET_KEY = "sk_test_51Qx4mdAkui0xqZf8zwSkExR4DxWuFmKKt9HcojfHhLUhc3A2i6EHcJ0UOTPaYQTQ6Ix1HrhtiEjZpuZqREyQto3j00K4ZLaKVJ"
-STRIPE_PUBLIC_KEY = "pk_test_51Qx4mdAkui0xqZf8Np5t72YXBhgyS7NdYDtn2WaHsDHgKQsyjhtljvYMmL7rsSuFlnLk1MvrztvvUG9yAm63VDuR00R0y3TDWK"
-STRIPE_WEBHOOK_SECRET = "whsec_cdfLG6UfPbN44AW96ee7sSuq8QKzZOUr"
-FRONTEND_URL = "http://localhost:8000" 
+
+STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY")
+STRIPE_PUBLIC_KEY = env("STRIPE_PUBLIC_KEY")
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET")
+FRONTEND_URL = env("FRONTEND_URL")
+
 
 DELIVERY_PARTNER_API_URL = "https://delivery-partner-api.com/notify"
 
@@ -237,3 +239,4 @@ SWAGGER_SETTINGS = {
         }
     }
 }
+
