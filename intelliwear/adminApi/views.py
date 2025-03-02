@@ -1,6 +1,6 @@
 from django.shortcuts import render
 #from django.contrib.auth.models import User
-from rest_framework import viewsets, generics, status
+from rest_framework import viewsets, generics, status , filters
 from .serializers import ProductSerializer,CarouselSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import BasePermission
@@ -9,7 +9,12 @@ from django.shortcuts import get_object_or_404
 from .models import Product,Carousel
 from customerApi.models import Customer
 from customerApi.serializers import CustomerSerializer
+from django_filters.rest_framework import DjangoFilterBackend
+from .paginations import MyLimitOffsetPagination
 #from .models import Product,Size,Color,Media
+
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 # Create your views here.
 class IsSuperUser(BasePermission):
@@ -19,12 +24,24 @@ class IsSuperUser(BasePermission):
 class ProfileView(APIView):
     permission_classes = [IsSuperUser]
 
+    @swagger_auto_schema(
+        responses={200: CustomerSerializer()},
+        operation_description="Get the profile details of the logged-in admin."
+    )
+
     def get(self, request):
         customer = Customer.objects.get(user=request.user)
         serializer = CustomerSerializer(customer)
         return Response(serializer.data)
 
-    def put(self, request):
+    
+    @swagger_auto_schema(
+        request_body=CustomerSerializer,
+        responses={200: CustomerSerializer()},
+        operation_description="Update the profile details of the logged-in admin."
+    )    
+
+    def patch(self, request):
         customer = Customer.objects.get(user=request.user)
         serializer = CustomerSerializer(customer, data=request.data, partial=True)
         if serializer.is_valid():
@@ -76,10 +93,23 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 class AdminCustomerListView(APIView):
     permission_classes = [IsSuperUser]
+    pagination_class = MyLimitOffsetPagination()
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter("limit", openapi.IN_QUERY, description="Number of results per page", type=openapi.TYPE_INTEGER),
+            openapi.Parameter("offset", openapi.IN_QUERY, description="Pagination offset", type=openapi.TYPE_INTEGER)
+        ],
+        responses={200: CustomerSerializer(many=True)}
+    )
 
     def get(self, request):
-        customers = Customer.objects.all()
-        serializer = CustomerSerializer(customers, many=True)
+        customers = Customer.objects.all().order_by("-created_at")
+
+        paginator = self.pagination_class
+        paginated_customers = paginator.paginate_queryset(customers , request)
+
+        serializer = CustomerSerializer(paginated_customers, many=True)
         return Response(serializer.data)
 
 class AdminCustomerDetailView(APIView):
@@ -100,6 +130,14 @@ class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [IsSuperUser]  
+
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['product_type']  
+
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']  
+
+    pagination_class = MyLimitOffsetPagination
 
 class CarouselViewSet(viewsets.ModelViewSet):
     queryset = Carousel.objects.all()

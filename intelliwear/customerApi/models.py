@@ -44,6 +44,7 @@ class Customer(models.Model):
     phone = models.CharField(max_length=15,unique=True)
     address = models.TextField(blank=True, null=True)
     user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='customer')
+    created_at = models.DateTimeField(auto_now_add=True)
     '''
     city = models.CharField(max_length=100, blank=True, null=True)
     state = models.CharField(max_length=100, blank=True, null=True)

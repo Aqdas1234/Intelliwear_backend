@@ -23,6 +23,9 @@ from .models import Customer,Cart,OrderItem,Review,Order,Payment,ShippingAddress
 from .serializers import CustomerSerializer,ProductListSerializer,ProductDetailSerializer,CartSerializer,OrderSerializer,ReviewCreateSerializer,ReviewSerializer
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
+from drf_yasg.utils import swagger_auto_schema
+
+
 class IsCustomerUser(BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and hasattr(request.user, 'customer') and request.user.customer.user_type == 'customer')
@@ -33,18 +36,34 @@ class CustomerProfileView(APIView):
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
     serializer_class = CustomerSerializer
 
+    @swagger_auto_schema(
+        responses={200: CustomerSerializer()},
+        operation_description="Get the profile details of the logged-in customer."
+    )
+
     def get(self, request):
         customer = Customer.objects.get(user=request.user)
         serializer = CustomerSerializer(customer)
         return Response(serializer.data)
 
-    def put(self, request):
+    @swagger_auto_schema(
+        request_body=CustomerSerializer,
+        responses={200: CustomerSerializer()},
+        operation_description="Update the profile details of the logged-in customer."
+    )        
+
+    def patch(self, request):
         customer = Customer.objects.get(user=request.user)
         serializer = CustomerSerializer(customer, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(
+        responses={204: "No Content"},
+        operation_description="Delete the customer profile."
+    )    
 
     def delete(self, request):
         customer = Customer.objects.get(user=request.user)

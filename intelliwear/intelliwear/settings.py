@@ -13,6 +13,7 @@ import environ
 from pathlib import Path
 import os
 from decouple import Config
+from datetime import timedelta
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -47,9 +48,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_filters',
     'rest_framework',
+    'rest_framework_simplejwt',
     'customerApi',
     'adminApi',
+    'drf_yasg',
     
 ]
 
@@ -177,6 +181,13 @@ REST_FRAMEWORK = {
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
     ]
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.AllowAny',  # Allow unauthenticated access by default
+    ),
+    'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
 }
 
 
@@ -201,9 +212,28 @@ TWOCHECKOUT_RETURN_URL = "https://yourfrontend.com/payment-success"
 TWOCHECKOUT_CANCEL_URL = "https://yourfrontend.com/payment-failed"
 
 
+
 DELIVERY_PARTNER_API_URL = "https://delivery-partner-api.com/notify"
 
 STRIPE_SECRET_KEY = "sk_test_51Qx4mdAkui0xqZf8zwSkExR4DxWuFmKKt9HcojfHhLUhc3A2i6EHcJ0UOTPaYQTQ6Ix1HrhtiEjZpuZqREyQto3j00K4ZLaKVJ"
 STRIPE_PUBLIC_KEY = "pk_test_51Qx4mdAkui0xqZf8Np5t72YXBhgyS7NdYDtn2WaHsDHgKQsyjhtljvYMmL7rsSuFlnLk1MvrztvvUG9yAm63VDuR00R0y3TDWK"
 STRIPE_WEBHOOK_SECRET = "whsec_cdfLG6UfPbN44AW96ee7sSuq8QKzZOUr"
 FRONTEND_URL = "http://localhost:8000" 
+
+DELIVERY_PARTNER_API_URL = "https://delivery-partner-api.com/notify"
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME':timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME':timedelta(days=7),
+}
+
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'description': "Enter token in the format: Bearer <your_token>"
+        }
+    }
+}

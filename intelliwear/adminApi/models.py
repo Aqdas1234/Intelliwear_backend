@@ -67,6 +67,7 @@ class Product(models.Model):
     ]
 
     GENDER_CHOICES = [
+        ('A', 'All'),
         ('M', 'Men'),
         ('W', 'Women'),
         ('C', 'Children'),
