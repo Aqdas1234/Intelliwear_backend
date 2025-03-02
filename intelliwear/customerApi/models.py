@@ -95,6 +95,7 @@ class Payment(models.Model):
         ('jazzcash', 'JazzCash'),
         ('credit_card', 'Credit Card'),
         ('debit_card', 'Debit Card'),
+        ('stripe', 'Stripe'),
         ('cod', 'Cash on Delivery')
     ])
     transaction_id = models.CharField(max_length=255, blank=True, null=True)
