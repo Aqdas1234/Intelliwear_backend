@@ -35,7 +35,7 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = env.bool("DEBUG", default=False)
 
 # ALLOWED_HOSTS = []
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost",'27b7-154-208-40-187.ngrok-free.app']
 
 AUTH_USER_MODEL = 'customerApi.User' 
 
@@ -178,6 +178,9 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.BrowsableAPIRenderer',
         'rest_framework.renderers.JSONRenderer',
     ),
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+    ]
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
@@ -207,6 +210,15 @@ TWOCHECKOUT_SANDBOX = True
 TWOCHECKOUT_API_URL = "https://api.2checkout.com/rest/6.0/orders/"
 TWOCHECKOUT_RETURN_URL = "https://yourfrontend.com/payment-success"
 TWOCHECKOUT_CANCEL_URL = "https://yourfrontend.com/payment-failed"
+
+
+
+DELIVERY_PARTNER_API_URL = "https://delivery-partner-api.com/notify"
+
+STRIPE_SECRET_KEY = "sk_test_51Qx4mdAkui0xqZf8zwSkExR4DxWuFmKKt9HcojfHhLUhc3A2i6EHcJ0UOTPaYQTQ6Ix1HrhtiEjZpuZqREyQto3j00K4ZLaKVJ"
+STRIPE_PUBLIC_KEY = "pk_test_51Qx4mdAkui0xqZf8Np5t72YXBhgyS7NdYDtn2WaHsDHgKQsyjhtljvYMmL7rsSuFlnLk1MvrztvvUG9yAm63VDuR00R0y3TDWK"
+STRIPE_WEBHOOK_SECRET = "whsec_cdfLG6UfPbN44AW96ee7sSuq8QKzZOUr"
+FRONTEND_URL = "http://localhost:8000" 
 
 DELIVERY_PARTNER_API_URL = "https://delivery-partner-api.com/notify"
 
