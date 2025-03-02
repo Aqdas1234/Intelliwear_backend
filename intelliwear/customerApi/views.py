@@ -1,6 +1,9 @@
 import json
-import logging
+import stripe
+#from .models import Order, OrderItem, Payment, ShippingAddress, Cart
 import time
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from django.db import transaction
 from django.forms import ValidationError
 import uuid
@@ -293,67 +296,43 @@ class ProductDetailView(APIView):
 
     
 
-    #stripe Integration
-import json
-import uuid
-import stripe
-import logging
-from django.conf import settings
-from django.db import transaction
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.views import APIView
-from .models import Order, OrderItem, Payment, ShippingAddress, Cart
+#stripe Integration
 
 # Set Stripe API Key
 stripe.api_key = settings.STRIPE_SECRET_KEY
-
-# Logger
-logger = logging.getLogger(__name__)
-
-
-class PlaceOrderViewStrip(APIView):
+class PlaceOrderView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        selected_product_ids = request.data.get("product_ids", [])
-        if not isinstance(selected_product_ids, list) or not selected_product_ids:
-            return Response({"error": "Invalid or empty product selection"}, status=status.HTTP_400_BAD_REQUEST)
+        selected_product_ids = request.data.get('product_ids', [])
+        if not selected_product_ids:
+            return Response({"error": "No products selected for order"}, status=status.HTTP_400_BAD_REQUEST)
 
         cart_items = Cart.objects.filter(user=request.user, product__id__in=selected_product_ids)
         if not cart_items.exists():
             return Response({"error": "Selected products not in cart"}, status=status.HTTP_400_BAD_REQUEST)
 
         total_price = sum(item.product.price * item.quantity for item in cart_items)
-        payment_method = request.data.get("payment_method", "cod").lower()
-
+        payment_method = request.data.get("payment_method", "cod")
         try:
             with transaction.atomic():
-                # Create Order
                 order = Order.objects.create(user=request.user, total_price=total_price, status="pending")
-                order.refresh_from_db()  # Ensure ID is properly assigned
-
-                # Create Order Items
                 OrderItem.objects.bulk_create([
                     OrderItem(order=order, product=item.product, quantity=item.quantity, price=item.product.price)
                     for item in cart_items
                 ])
-
-                # Create Shipping Address
                 ShippingAddress.objects.create(
                     user=request.user,
                     order=order,
                     name=request.data.get("name", request.user.username),
                     city=request.data.get("city", ""),
                     address=request.data.get("address", ""),
-                    phone=request.data.get("phone", ""),
+                    phone=request.data.get("phone", "")
                 )
-
                 transaction_id = str(uuid.uuid4())
 
                 if payment_method == "cod":
-                    Payment.objects.create(
+                    payment = Payment.objects.create(
                         user=request.user,
                         order=order,
                         payment_method="COD",
@@ -365,49 +344,38 @@ class PlaceOrderViewStrip(APIView):
                     return Response({"message": "Order placed successfully", "order_id": order.id}, status=status.HTTP_201_CREATED)
 
                 elif payment_method == "stripe":
-                    # Move Stripe API call outside the transaction block
-                    pass
+                    # Create Stripe Checkout Session
+                    checkout_session = stripe.checkout.Session.create(
+                        payment_method_types=["card"],
+                        line_items=[{
+                            "price_data": {
+                                "currency": "usd",
+                                "product_data": {"name": f"Order #{order.id}"},
+                                "unit_amount": int(total_price * 100),  # Convert to cents
+                            },
+                            "quantity": 1,
+                        }],
+                        mode="payment",
+                        success_url=f"{settings.FRONTEND_URL}/customer/order-success/{order.id}",
+                        cancel_url=f"{settings.FRONTEND_URL}/customer/order-cancel/{order.id}",
+                        metadata={"order_id": str(order.id)}
+                    )
+
+                    Payment.objects.create(
+                        user=request.user,
+                        order=order,
+                        payment_method="stripe",
+                        transaction_id=checkout_session.id,
+                        payment_status="Pending"
+                    )
+
+                    return Response({"message": "Redirect to Stripe for payment", "payment_url": checkout_session.url}, status=status.HTTP_201_CREATED)
+
+                else:
+                    return Response({"error": "Invalid payment method"}, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
-            logger.error(f"Order placement failed: {str(e)}")
-            return Response({"error": "Order placement failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        # Handle Stripe API call separately
-        if payment_method == "stripe":
-            try:
-                checkout_session = stripe.checkout.Session.create(
-                payment_method_types=["card"],
-                line_items=[{
-                    "price_data": {
-                        "currency": "usd",
-                        "product_data": {"name": f"Order #{order.id}"},
-                        "unit_amount": int(total_price * 100),
-                    },
-                    "quantity": 1,
-                }],
-                mode="payment",
-                success_url=f"{settings.FRONTEND_URL}/payment-success/",
-                cancel_url=f"{settings.FRONTEND_URL}/payment-failed/",
-                metadata={  # Ensure metadata is passed correctly
-                    "order_id": str(order.id)
-                },
-                 )
-
-                Payment.objects.create(
-                    user=request.user,
-                    order=order,
-                    payment_method="Stripe",
-                    transaction_id=checkout_session.id,
-                    payment_status="Pending"
-                )
-
-                return Response({"message": "Redirect to Stripe for payment", "payment_url": checkout_session.url}, status=status.HTTP_201_CREATED)
-
-            except Exception as e:
-                logger.error(f"Stripe payment failed: {str(e)}")
-                return Response({"error": "Stripe payment failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        return Response({"error": "Invalid payment method"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": f"Order placement failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class paymentFailView(APIView):
@@ -415,85 +383,48 @@ class paymentFailView(APIView):
         return Response({"message": "Payment failed"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
-
 @method_decorator(csrf_exempt, name='dispatch')
 class StripeWebhookView(APIView):
 
     def post(self, request):
-        print("🚀 Webhook triggered!")  # Debugging print
-
         payload = request.body  # Raw bytes for signature verification
         sig_header = request.headers.get("Stripe-Signature")
         endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
 
-        print("📢 Stripe Signature Header:", sig_header)
-        print("📢 Received Payload:", payload)
 
         try:
             event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
         except ValueError as e:
-            print("⚠️ Webhook Error: Invalid payload")
             return Response({"error": "Invalid payload"}, status=status.HTTP_400_BAD_REQUEST)
         except stripe.error.SignatureVerificationError as e:
-            print("❌ Webhook Error: Signature Verification Failed")
             return Response({"error": "Invalid signature"}, status=status.HTTP_400_BAD_REQUEST)
-
-        print("✅ Received Stripe Webhook Event:", event["type"])
-
+        
         if event["type"] == "checkout.session.completed":
             session = event["data"]["object"]
             metadata = session.get("metadata", {})
 
             order_id = metadata.get("order_id")
-            print("🛒 Extracted Order ID:", order_id)
-
             if not order_id:
                 return Response({"error": "Invalid order_id in metadata"}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
                 with transaction.atomic():
-                    print("🔍 Looking for Payment record with transaction_id:", session["id"])
                     payment = Payment.objects.select_related("order").get(transaction_id=session["id"])
                     order = payment.order  # Get related order
 
                     if str(order.id) != order_id:
-                        print("⚠️ Order ID mismatch!")
                         return Response({"error": "Order ID mismatch"}, status=status.HTTP_400_BAD_REQUEST)
 
-                    print("✅ Payment & Order Found! Updating status...")
                     payment.payment_status = "Completed"
-                    order.status = "shipped"  # Use "paid" instead of "shipped"
+                    order.status = "shipped" 
                     payment.save()
                     order.save()
 
                     # Remove only the ordered items from the cart
                     ordered_products = order.items.values_list("product_id", flat=True)
-                    print("🗑 Removing ordered items from cart:", list(ordered_products))
                     Cart.objects.filter(user=order.user, product_id__in=ordered_products).delete()
 
-                    print("✅ Payment & Order Updated Successfully!")
-
             except Payment.DoesNotExist:
-                print("❌ Payment record not found for transaction_id:", session["id"])
                 return Response({"error": "Payment record not found"}, status=status.HTTP_200_OK)  # Return 200 to prevent retries
 
         return Response({"message": "Webhook processed successfully"}, status=status.HTTP_200_OK)
-'''  
-import json
-from django.views.decorators.csrf import csrf_exempt 
-@csrf_exempt
-def stripe_webhook(request):
-    payload = request.body
-    event = None
-    try:
-        event = json.loads(payload)
-    except json.JSONDecodeError as e:
-        return HttpResponse(status=400)
-
-    if event["type"] == "payment_intent.succeeded":
-        payment_intent = event["data"]["object"]
-        print("Metadata:", payment_intent.get("metadata", {}))  # Ensure metadata is logged
-    return HttpResponse(status=200)
-''' 
