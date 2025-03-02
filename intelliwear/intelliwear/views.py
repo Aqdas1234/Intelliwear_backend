@@ -129,7 +129,8 @@ class ChangePasswordView(APIView):
     
 
 class PasswordResetRequestView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
     
     @swagger_auto_schema(
@@ -145,6 +146,7 @@ class PasswordResetRequestView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class PasswordResetConfirmView(APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]  # No authentication required
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]  # DRF HTML form support
     
