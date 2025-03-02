@@ -13,6 +13,7 @@ import environ
 from pathlib import Path
 import os
 from decouple import Config
+from datetime import timedelta
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -49,6 +50,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django_filters',
     'rest_framework',
+    'rest_framework_simplejwt',
     'customerApi',
     'adminApi',
     'drf_yasg',
@@ -176,6 +178,12 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.BrowsableAPIRenderer',
         'rest_framework.renderers.JSONRenderer',
     ),
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.AllowAny',  # Allow unauthenticated access by default
+    ),
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
 }
 
@@ -201,3 +209,19 @@ TWOCHECKOUT_RETURN_URL = "https://yourfrontend.com/payment-success"
 TWOCHECKOUT_CANCEL_URL = "https://yourfrontend.com/payment-failed"
 
 DELIVERY_PARTNER_API_URL = "https://delivery-partner-api.com/notify"
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME':timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME':timedelta(days=7),
+}
+
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'description': "Enter token in the format: Bearer <your_token>"
+        }
+    }
+}

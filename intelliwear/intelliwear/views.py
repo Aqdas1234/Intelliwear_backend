@@ -10,12 +10,22 @@ from django.utils.encoding import force_str
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.conf import settings
+from datetime import datetime , timezone
+from zoneinfo import ZoneInfo
+
+User = get_user_model() 
+
+pkt = ZoneInfo("Asia/Karachi")
+
 
 from drf_yasg.utils import swagger_auto_schema
 
 User = get_user_model() 
 
 class RegisterView(APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
@@ -32,6 +42,8 @@ class RegisterView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginView(APIView):
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
     serializer_class = LoginSerializer
 
@@ -51,15 +63,39 @@ class LoginView(APIView):
         print("user info" , email , password , user)
 
         if user:
-            login(request, user)  
-            if hasattr(user, 'customer'):
-                if user.customer.user_type == 'admin':
-                    return redirect("/adminApi/profile/")
+            login(request, user)    
+            user_data = CustomerSerializer(user.customer).data
+
+            refresh = RefreshToken.for_user(user)
+            access_token = refresh.access_token
+
+            access_token_lifetime = settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"]
+            refresh_token_lifetime = settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]
+
+            access_token_expiry = datetime.now(pkt) + access_token_lifetime
+            refresh_token_expiry = datetime.now(pkt) + refresh_token_lifetime
+
+            return Response({
+                   "token": {
+                    "access_token": {
+                        "token": str(access_token),
+                        "expires_at": access_token_expiry.isoformat()
+                    },
+                    "refresh_token": {
+                        "token": str(refresh),
+                        "expires_at": refresh_token_expiry.isoformat()
+                    }
+                },
+                    "user_info": user_data
+                }, status=status.HTTP_200_OK)
+            # if hasattr(user, 'customer'):
+                # if user.customer.user_type == 'admin':
+                    # return redirect("/adminApi/profile/")
                     #return Response({"redirect_url": "/adminApi/profile/"})
-                else:
-                    return redirect("/customer/")
+                # else:
+                    # return redirect("/customer/")
                     #return Response({"redirect_url": "/customer/"})
-            return Response({"error": "User type not found"}, status=status.HTTP_400_BAD_REQUEST)
+            # return Response({"error": "User type not found"}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -93,7 +129,8 @@ class ChangePasswordView(APIView):
     
 
 class PasswordResetRequestView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
     
     @swagger_auto_schema(
@@ -109,6 +146,7 @@ class PasswordResetRequestView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class PasswordResetConfirmView(APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]  # No authentication required
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]  # DRF HTML form support
     

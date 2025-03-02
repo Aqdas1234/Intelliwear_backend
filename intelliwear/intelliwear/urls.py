@@ -1,9 +1,11 @@
 from .views import RegisterView,LoginView,LogoutView,ChangePasswordView,PasswordResetConfirmView,PasswordResetRequestView
 from django.contrib import admin
 from django.urls import path,include
+from rest_framework_simplejwt.views import TokenObtainPairView , TokenRefreshView
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework import permissions
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -13,6 +15,7 @@ schema_view = get_schema_view(
     
     ),
     public=True,
+    authentication_classes=[JWTAuthentication],
     permission_classes=(permissions.AllowAny,),
 )
 
@@ -24,6 +27,7 @@ urlpatterns = [
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('password-reset/', PasswordResetRequestView.as_view(), name='password-reset'),
     path('password-reset-confirm/<uidb64>/<token>/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+    path('refreshtoken/' , TokenRefreshView.as_view() , name="token_refresh"),
 
 
     path('adminApi/', include('adminApi.urls')),

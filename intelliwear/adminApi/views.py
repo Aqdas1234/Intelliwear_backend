@@ -93,20 +93,23 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 class AdminCustomerListView(APIView):
     permission_classes = [IsSuperUser]
+    pagination_class = MyLimitOffsetPagination()
 
     @swagger_auto_schema(
         manual_parameters=[
-            openapi.Parameter(
-                "search", openapi.IN_QUERY, description="Search customers by name",
-                type=openapi.TYPE_STRING
-            )
+            openapi.Parameter("limit", openapi.IN_QUERY, description="Number of results per page", type=openapi.TYPE_INTEGER),
+            openapi.Parameter("offset", openapi.IN_QUERY, description="Pagination offset", type=openapi.TYPE_INTEGER)
         ],
         responses={200: CustomerSerializer(many=True)}
     )
 
     def get(self, request):
-        customers = Customer.objects.all()
-        serializer = CustomerSerializer(customers, many=True)
+        customers = Customer.objects.all().order_by("-created_at")
+
+        paginator = self.pagination_class
+        paginated_customers = paginator.paginate_queryset(customers , request)
+
+        serializer = CustomerSerializer(paginated_customers, many=True)
         return Response(serializer.data)
 
 class AdminCustomerDetailView(APIView):
