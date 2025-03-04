@@ -54,7 +54,7 @@ INSTALLED_APPS = [
     'customerApi',
     'adminApi',
     'drf_yasg',
-    
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
@@ -66,6 +66,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'intelliwear.urls'
@@ -225,7 +226,7 @@ FRONTEND_URL = env("FRONTEND_URL")
 DELIVERY_PARTNER_API_URL = "https://delivery-partner-api.com/notify"
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME':timedelta(minutes=30),
+    'ACCESS_TOKEN_LIFETIME':timedelta(days=1),
     'REFRESH_TOKEN_LIFETIME':timedelta(days=7),
 }
 
@@ -240,3 +241,6 @@ SWAGGER_SETTINGS = {
     }
 }
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]

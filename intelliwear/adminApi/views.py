@@ -118,18 +118,27 @@ class AdminCustomerDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [IsSuperUser]  
 
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['product_type']  
+    filterset_fields = ['product_type'] 
+
     ordering_fields = ['created_at']
     ordering = ['-created_at']  
 
     pagination_class = MyLimitOffsetPagination 
 
-# Carousel ViewSet
+    def get_queryset(self):
+        queryset = Product.objects.all()
+
+        product_type = self.request.query_params.get('product_type')
+
+        if product_type:
+            queryset = queryset.filter(product_type=product_type)
+
+        return queryset
+
 class CarouselViewSet(viewsets.ModelViewSet):
     queryset = Carousel.objects.all()
     serializer_class = CarouselSerializer

@@ -12,6 +12,8 @@ from django.contrib.auth import get_user_model
 from adminApi.serializers import ProductSerializer,MediaSerializer
 from .models import User, Cart, Order, OrderItem, Review, ShippingAddress, Payment
 from adminApi.models import Product
+from django.conf import settings
+
 User = get_user_model() 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -54,25 +56,30 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.set_password(self.validated_data['new_password'])
         user.save()
         return user
-    
+
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
     def validate_email(self, value):
+        """Check if the email exists in the database."""
         if not User.objects.filter(email=value).exists():
             raise serializers.ValidationError("User with this email does not exist.")
         return value
 
-    def send_password_reset_email(self, request):
-        """Send email with reset link"""
-        email = self.validated_data['email']
+    def create(self, validated_data):
+        """Handle password reset email sending."""
+        email = validated_data['email']
         user = User.objects.get(email=email)
-        uid = urlsafe_base64_encode(force_bytes(user.pk))  # Encode user ID
-        token = default_token_generator.make_token(user)  # Generate token
-        reset_link = request.build_absolute_uri(
-            reverse('password-reset-confirm', kwargs={'uidb64': uid, 'token': token})
-        )
 
+        # Generate token and user ID encoding
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+
+        # Frontend reset password URL
+        frontend_url = f"{settings.FRONTEND_URL}/reset-password"
+        reset_link = f"{frontend_url}/{uid}/{token}"
+
+        # Send password reset email
         send_mail(
             subject="Password Reset Request",
             message=f"Click the link below to reset your password:\n{reset_link}",
@@ -80,6 +87,9 @@ class PasswordResetSerializer(serializers.Serializer):
             recipient_list=[email],
             fail_silently=False,
         )
+
+        return {"message": "Password reset email sent successfully."}
+
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
     new_password = serializers.CharField(write_only=True, min_length=6)
@@ -255,9 +265,12 @@ class PasswordResetSerializer(serializers.Serializer):
         user = User.objects.get(email=email)
         uid = urlsafe_base64_encode(force_bytes(user.pk))  # Encode user ID
         token = default_token_generator.make_token(user)  # Generate token
-        reset_link = request.build_absolute_uri(
-            reverse('password-reset-confirm', kwargs={'uidb64': uid, 'token': token})
-        )
+        # reset_link = request.build_absolute_uri(
+        #     reverse('password-reset-confirm', kwargs={'uidb64': uid, 'token': token})
+        # )
+        frontend_url = "http://localhost:5173/reset-password"
+        reset_link = f"{frontend_url}/{uid}/{token}"
+
 
         send_mail(
             subject="Password Reset Request",
