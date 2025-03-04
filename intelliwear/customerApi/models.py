@@ -1,8 +1,10 @@
+from django.utils import timezone
 from django.db import models
-from django.contrib.auth.models import AbstractUser,BaseUserManager
+from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.exceptions import ValidationError
 from adminApi.models import Product
 import uuid
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -23,9 +25,18 @@ class CustomUserManager(BaseUserManager):
         return self.create_user(email, password, **extra_fields)
 
 class User(AbstractUser):
+    USER_TYPE_CHOICES = (
+        ('customer', 'Customer'),
+        ('admin', 'Admin'),
+    )
     username = None
     name = models.CharField(max_length=255, null=False, blank=False, default="Unknown")
     email = models.EmailField(unique=True) 
+    phone = models.CharField(max_length=15, unique=True)
+    address = models.TextField(blank=True, null=True)
+    user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='customer')
+    profile_picture = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
     USERNAME_FIELD = 'email'  
     REQUIRED_FIELDS = [] 
     is_superuser = models.BooleanField(default=False)  
@@ -35,37 +46,14 @@ class User(AbstractUser):
     def __str__(self):
         return self.email
 
-class Customer(models.Model):
-    USER_TYPE_CHOICES = (
-        ('customer', 'Customer'),
-        ('admin', 'Admin'),
-    )
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="customer")
-    phone = models.CharField(max_length=15,unique=True)
-    address = models.TextField(blank=True, null=True)
-    user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='customer')
-    created_at = models.DateTimeField(auto_now_add=True)
-    '''
-    city = models.CharField(max_length=100, blank=True, null=True)
-    state = models.CharField(max_length=100, blank=True, null=True)
-    country = models.CharField(max_length=100, blank=True, null=True)
-    '''
-    profile_picture = models.ImageField(upload_to='profile_pics/', blank=True,null=True)
-
-    def __str__(self):
-        return self.user.email 
-    
     def save(self, *args, **kwargs):
-        if self.user_type == 'admin' and not self.user.is_superuser:
+        if self.user_type == 'admin' and not self.is_superuser:
             raise ValidationError("Only superusers can assign the 'admin' type.")
         super().save(*args, **kwargs)
 
-
-
-
-#Cart 
+# Cart 
 class Cart(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=2)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
     added_at = models.DateTimeField(auto_now_add=True)
@@ -76,9 +64,8 @@ class Cart(models.Model):
     def __str__(self):
         return f"{self.user.email} - {self.product.name} ({self.quantity})"
 
-
 class ShippingAddress(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=2)
     order = models.OneToOneField('Order', on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     city = models.CharField(max_length=100)
@@ -87,9 +74,9 @@ class ShippingAddress(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.city}"
-    
+
 class Payment(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=2)
     order = models.OneToOneField('Order', on_delete=models.CASCADE)
     payment_method = models.CharField(max_length=50, choices=[
         ('easypaisa', 'Easypaisa'),
@@ -103,20 +90,18 @@ class Payment(models.Model):
     payment_status = models.CharField(max_length=20, default="Pending")
 
     def __str__(self):
-        return f"Payment {self.id} - {self.user.username} - {self.payment_method}"
-
-
-
+        return f"Payment {self.id} - {self.user.email} - {self.payment_method}"
 
 class Order(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
+        ('in_process', 'In Process'),
         ('shipped', 'Shipped'),
         ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=2)
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -133,15 +118,13 @@ class OrderItem(models.Model):
     def __str__(self):
         return f"{self.product.name} x {self.quantity}"
 
-
-#Review Model
+# Review Model
 class Review(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     product = models.ForeignKey(Product, related_name="reviews", on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    rating = models.PositiveIntegerField()
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=1)
+    rating = models.PositiveIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     comment = models.TextField()
-    #image = models.ImageField(upload_to="review_images/", blank=True, null=True)  
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -149,13 +132,3 @@ class Review(models.Model):
 
     def __str__(self):
         return f"Review by {self.user.email} for {self.product.name}"
-    
-    def save(self, *args, **kwargs):
-        if not (1 <= self.rating <= 5):
-            raise ValidationError("Rating must be between 1 and 5")
-        super().save(*args, **kwargs)
-
-
-class ReviewImage(models.Model):
-    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='review_images/')

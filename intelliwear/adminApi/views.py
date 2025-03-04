@@ -1,59 +1,52 @@
 from django.shortcuts import render
 #from django.contrib.auth.models import User
-from rest_framework import viewsets, generics, status , filters
+from rest_framework import viewsets, status , filters
+from customerApi.serializers import UserSerializer
 from .serializers import ProductSerializer,CarouselSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import BasePermission
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from .models import Product,Carousel
-from customerApi.models import Customer
-from customerApi.serializers import CustomerSerializer
 from django_filters.rest_framework import DjangoFilterBackend
 from .paginations import MyLimitOffsetPagination
+from django.contrib.auth import get_user_model
 #from .models import Product,Size,Color,Media
-
+User = get_user_model() 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 # Create your views here.
 class IsSuperUser(BasePermission):
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and hasattr(request.user, 'customer') and request.user.customer.user_type == 'admin')
-
+        return bool(request.user and request.user.is_authenticated and request.user.user_type == 'admin')
+    
 class ProfileView(APIView):
     permission_classes = [IsSuperUser]
 
     @swagger_auto_schema(
-        responses={200: CustomerSerializer()},
+        responses={200: UserSerializer()},
         operation_description="Get the profile details of the logged-in admin."
     )
 
     def get(self, request):
-        customer = Customer.objects.get(user=request.user)
-        serializer = CustomerSerializer(customer)
+        serializer = UserSerializer(request.user)  # Directly use User model
         return Response(serializer.data)
 
     
     @swagger_auto_schema(
-        request_body=CustomerSerializer,
-        responses={200: CustomerSerializer()},
+        request_body=UserSerializer,
+        responses={200: UserSerializer()},
         operation_description="Update the profile details of the logged-in admin."
     )    
 
     def patch(self, request):
-        customer = Customer.objects.get(user=request.user)
-        serializer = CustomerSerializer(customer, data=request.data, partial=True)
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    '''
-    def delete(self, request):
-        customer = Customer.objects.get(user=request.user)
-        customer.user.delete()  # Delete the associated User instance
-        return Response(status=status.HTTP_204_NO_CONTENT)
-    '''
+
 
 
 '''
@@ -91,40 +84,38 @@ class ChangePasswordView(generics.UpdateAPIView):
 '''
 
 
+# Admin Customer List View
 class AdminCustomerListView(APIView):
     permission_classes = [IsSuperUser]
-    pagination_class = MyLimitOffsetPagination()
+    pagination_class = MyLimitOffsetPagination  # Fix: Should be a class reference, not an instance
 
     @swagger_auto_schema(
         manual_parameters=[
             openapi.Parameter("limit", openapi.IN_QUERY, description="Number of results per page", type=openapi.TYPE_INTEGER),
             openapi.Parameter("offset", openapi.IN_QUERY, description="Pagination offset", type=openapi.TYPE_INTEGER)
         ],
-        responses={200: CustomerSerializer(many=True)}
+        responses={200: UserSerializer(many=True)}
     )
-
     def get(self, request):
-        customers = Customer.objects.all().order_by("-created_at")
+        users = User.objects.all().order_by("-created_at")
+        paginator = self.pagination_class()  
+        paginated_users = paginator.paginate_queryset(users, request)
+        serializer = UserSerializer(paginated_users, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
-        paginator = self.pagination_class
-        paginated_customers = paginator.paginate_queryset(customers , request)
-
-        serializer = CustomerSerializer(paginated_customers, many=True)
-        return Response(serializer.data)
 
 class AdminCustomerDetailView(APIView):
     permission_classes = [IsSuperUser]
 
     def get(self, request, user_id):  
-        customer = get_object_or_404(Customer, user__id=user_id)  
-        serializer = CustomerSerializer(customer)
+        user = get_object_or_404(User, id=user_id)  
+        serializer = UserSerializer(user) 
         return Response(serializer.data)
 
     def delete(self, request, user_id): 
-        customer = get_object_or_404(Customer, user__id=user_id)
-        customer.user.delete()  
+        user = get_object_or_404(User, id=user_id)  
+        user.delete() 
         return Response(status=status.HTTP_204_NO_CONTENT)
-
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
@@ -133,12 +124,12 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['product_type']  
-
     ordering_fields = ['created_at']
     ordering = ['-created_at']  
 
-    pagination_class = MyLimitOffsetPagination
+    pagination_class = MyLimitOffsetPagination 
 
+# Carousel ViewSet
 class CarouselViewSet(viewsets.ModelViewSet):
     queryset = Carousel.objects.all()
     serializer_class = CarouselSerializer

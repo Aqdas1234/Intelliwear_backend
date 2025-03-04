@@ -1,60 +1,49 @@
-import json
 import stripe
 #from .models import Order, OrderItem, Payment, ShippingAddress, Cart
-import time
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import transaction
-from django.forms import ValidationError
+#from django.forms import ValidationError
 import uuid
-from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
-import requests
+#import requests
 from rest_framework.views import APIView
-from django.core.mail import send_mail
+#from django.core.mail import send_mail
 from django.conf import settings
-#from django.contrib.auth import authenticate, login, logout
 from adminApi.models import Product
 from rest_framework.response import Response
 from rest_framework import status,generics, pagination
-from rest_framework.permissions import IsAuthenticated,BasePermission,AllowAny, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticated,BasePermission,AllowAny
 #from django.contrib.auth.models import User
-from .models import Customer,Cart,OrderItem,Review,Order,Payment,ShippingAddress
-from .serializers import CustomerSerializer,ProductListSerializer,ProductDetailSerializer,CartSerializer,OrderSerializer,ReviewCreateSerializer,ReviewSerializer
+from .models import Cart,OrderItem,Review,Order,Payment,ShippingAddress
+from .serializers import ProductListSerializer,ProductDetailSerializer,OrderSerializer,ReviewSerializer, UserSerializer
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
-
 from drf_yasg.utils import swagger_auto_schema
 
 
 class IsCustomerUser(BasePermission):
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and hasattr(request.user, 'customer') and request.user.customer.user_type == 'customer')
+        return bool(request.user and request.user.is_authenticated and request.user.user_type == 'customer')
     
-
 class CustomerProfileView(APIView):
-    permission_classes = [IsCustomerUser]
+    permission_classes = [IsCustomerUser]  # Ensure correct permission
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
-    serializer_class = CustomerSerializer
 
     @swagger_auto_schema(
-        responses={200: CustomerSerializer()},
-        operation_description="Get the profile details of the logged-in customer."
+        responses={200: UserSerializer()},
+        operation_description="Get the profile details of the logged-in user."
     )
-
     def get(self, request):
-        customer = Customer.objects.get(user=request.user)
-        serializer = CustomerSerializer(customer)
+        serializer = UserSerializer(request.user)  # Directly use User model
         return Response(serializer.data)
 
     @swagger_auto_schema(
-        request_body=CustomerSerializer,
-        responses={200: CustomerSerializer()},
-        operation_description="Update the profile details of the logged-in customer."
+        request_body=UserSerializer,
+        responses={200: UserSerializer()},
+        operation_description="Update the profile details of the logged-in user."
     )        
-
     def patch(self, request):
-        customer = Customer.objects.get(user=request.user)
-        serializer = CustomerSerializer(customer, data=request.data, partial=True)
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -62,17 +51,13 @@ class CustomerProfileView(APIView):
 
     @swagger_auto_schema(
         responses={204: "No Content"},
-        operation_description="Delete the customer profile."
+        operation_description="Delete the user account."
     )    
-
     def delete(self, request):
-        customer = Customer.objects.get(user=request.user)
-        customer.user.delete()  # Delete the associated User instance
+        request.user.delete()  # Delete the user account
         return Response(status=status.HTTP_204_NO_CONTENT)
+
     
-
-
-
 
 class CategoryProductsListView(generics.ListAPIView):
     serializer_class = ProductListSerializer
@@ -93,23 +78,32 @@ class ProductDetailView(generics.RetrieveAPIView):
 #Cart 
 
 class AddToCartView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsCustomerUser]  
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
-    #serializer_class = CartSerializer
 
     def post(self, request):
         product_id = request.data.get('product_id')
         quantity = request.data.get('quantity', 1)
 
         try:
+            quantity = int(quantity)
+            if quantity <= 0:
+                return Response({"error": "Quantity must be greater than 0"}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            return Response({"error": "Invalid quantity format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
             product = Product.objects.get(id=product_id)
-            cart_item, created = Cart.objects.get_or_create(user=request.user, product=product)
-            if not created:
-                cart_item.quantity += int(quantity)
-                cart_item.save()
-            return Response({"message": "Product added to cart"}, status=status.HTTP_200_OK)
         except Product.DoesNotExist:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        cart_item, created = Cart.objects.get_or_create(user=request.user, product=product)
+        if not created:
+            cart_item.quantity += quantity
+            cart_item.save()
+
+        return Response({"message": "Product added to cart"}, status=status.HTTP_200_OK)
+
 
 
 class GoToCheckoutView(APIView):
@@ -121,7 +115,7 @@ class GoToCheckoutView(APIView):
             return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
         product_ids = list(cart_items.values_list("product__id", flat=True))
         return Response({"product_ids": product_ids}, status=status.HTTP_200_OK)
-    
+'''   
 #place Order
 class PlaceOrderView(APIView):
     permission_classes = [IsAuthenticated]
@@ -263,10 +257,10 @@ class CheckoutWebhookView(APIView):
             if response.status_code == 200:
                 return 
             time.sleep(2) 
+'''
 
 class OrderListView(APIView):
-    permission_classes = [IsAuthenticated]
-
+    permission_classes = [IsCustomerUser]
     def get(self, request):
         orders = Order.objects.filter(user=request.user).order_by('-created_at')
         serializer = OrderSerializer(orders, many=True)
@@ -284,7 +278,6 @@ class ProductDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, product_id):
-        """Product details + paginated reviews"""
         product = get_object_or_404(Product, id=product_id)
         product_serializer = ProductDetailSerializer(product)
 
@@ -297,18 +290,20 @@ class ProductDetailView(APIView):
         response_data["reviews"] = review_serializer.data
         return paginator.get_paginated_response(response_data)
 
+class CreateReviewView(APIView):
+    permission_classes = [IsCustomerUser]
+
     def post(self, request, product_id):
-        """New review with multiple images"""
         product = get_object_or_404(Product, id=product_id)
         user = request.user
-
+        # Prevent duplicate reviews
         if Review.objects.filter(product=product, user=user).exists():
-            raise ValidationError("You have already reviewed this product.")
-
-        serializer = ReviewCreateSerializer(data=request.data)
+            return Response({"error": "You have already reviewed this product."}, status=400)
+        serializer = ReviewSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(user=user, product=product)
             return Response(serializer.data, status=201)
+
         return Response(serializer.errors, status=400)
 
 
@@ -319,8 +314,8 @@ class ProductDetailView(APIView):
 
 # Set Stripe API Key
 stripe.api_key = settings.STRIPE_SECRET_KEY
-class PlaceOrderView(APIView):
-    permission_classes = [IsAuthenticated]
+class PlaceOrderViewStripe(APIView):
+    permission_classes = [IsCustomerUser]
 
     def post(self, request):
         selected_product_ids = request.data.get('product_ids', [])
@@ -343,7 +338,7 @@ class PlaceOrderView(APIView):
                 ShippingAddress.objects.create(
                     user=request.user,
                     order=order,
-                    name=request.data.get("name", request.user.username),
+                    name=request.data.get("name", request.user.name),
                     city=request.data.get("city", ""),
                     address=request.data.get("address", ""),
                     phone=request.data.get("phone", "")
@@ -375,8 +370,8 @@ class PlaceOrderView(APIView):
                             "quantity": 1,
                         }],
                         mode="payment",
-                        success_url=f"{settings.FRONTEND_URL}/customer/order-success/{order.id}",
-                        cancel_url=f"{settings.FRONTEND_URL}/customer/order-cancel/{order.id}",
+                        success_url=f"{settings.FRONTEND_URL}/customer/payment-success/",
+                        cancel_url=f"{settings.FRONTEND_URL}/customer/payment-failed/",
                         metadata={"order_id": str(order.id)}
                     )
 
@@ -435,7 +430,7 @@ class StripeWebhookView(APIView):
                         return Response({"error": "Order ID mismatch"}, status=status.HTTP_400_BAD_REQUEST)
 
                     payment.payment_status = "Completed"
-                    order.status = "shipped" 
+                    order.status = "in_process" 
                     payment.save()
                     order.save()
 

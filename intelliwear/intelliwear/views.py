@@ -1,7 +1,7 @@
 from rest_framework.response import Response
 #from django.contrib.auth.models import User
-from rest_framework import status,generics ,permissions
-from customerApi.serializers import CustomerSerializer,ChangePasswordSerializer,PasswordResetSerializer,LoginSerializer,PasswordResetConfirmSerializer
+from rest_framework import status ,permissions
+from customerApi.serializers import UserSerializer,ChangePasswordSerializer,PasswordResetSerializer,LoginSerializer,PasswordResetConfirmSerializer, UserSerializer
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.tokens import default_token_generator
@@ -9,16 +9,14 @@ from django.utils.http import urlsafe_base64_decode
 from django.utils.encoding import force_str
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from django.contrib.auth import get_user_model
-from django.shortcuts import redirect
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
-from datetime import datetime , timezone
+from datetime import  timezone
 from zoneinfo import ZoneInfo
 
 User = get_user_model() 
 
 pkt = ZoneInfo("Asia/Karachi")
-
 
 from drf_yasg.utils import swagger_auto_schema
 
@@ -30,22 +28,21 @@ class RegisterView(APIView):
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
     @swagger_auto_schema(
-        request_body=CustomerSerializer,
-        responses={201: CustomerSerializer(), 400: "Invalid data"}
+        request_body=UserSerializer,
+        responses={201: UserSerializer(), 400: "Invalid data"}
     )
-
     def post(self, request):
-        serializer = CustomerSerializer(data=request.data)
+        serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            user = serializer.save()
+            return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class LoginView(APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
-    serializer_class = LoginSerializer
 
     @swagger_auto_schema(
         request_body=LoginSerializer,
@@ -54,29 +51,24 @@ class LoginView(APIView):
             400: "Invalid credentials"
         }
     )
-
     def post(self, request):
         email = request.data.get("email")
         password = request.data.get("password")
-        user = authenticate(request, email=email, password=password)
-
-        print("user info" , email , password , user)
-
+        # Authenticate using email (Ensure settings.py has correct AUTH_BACKENDS)
+        user = authenticate(request, username=email, password=password)
         if user:
             login(request, user)    
-            user_data = CustomerSerializer(user.customer).data
+            user_data = UserSerializer(user).data  # Fixed user serialization
 
             refresh = RefreshToken.for_user(user)
             access_token = refresh.access_token
 
-            access_token_lifetime = settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"]
-            refresh_token_lifetime = settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]
-
-            access_token_expiry = datetime.now(pkt) + access_token_lifetime
-            refresh_token_expiry = datetime.now(pkt) + refresh_token_lifetime
+            # Use Django timezone
+            access_token_expiry = timezone.now() + settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"]
+            refresh_token_expiry = timezone.now() + settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]
 
             return Response({
-                   "token": {
+                "token": {
                     "access_token": {
                         "token": str(access_token),
                         "expires_at": access_token_expiry.isoformat()
@@ -86,29 +78,28 @@ class LoginView(APIView):
                         "expires_at": refresh_token_expiry.isoformat()
                     }
                 },
-                    "user_info": user_data
-                }, status=status.HTTP_200_OK)
-            # if hasattr(user, 'customer'):
-                # if user.customer.user_type == 'admin':
-                    # return redirect("/adminApi/profile/")
-                    #return Response({"redirect_url": "/adminApi/profile/"})
-                # else:
-                    # return redirect("/customer/")
-                    #return Response({"redirect_url": "/customer/"})
-            # return Response({"error": "User type not found"}, status=status.HTTP_400_BAD_REQUEST)
+                "user_info": user_data
+            }, status=status.HTTP_200_OK)
 
         return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
-
     
 class LogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
     @swagger_auto_schema(
         responses={200: "Logged out successfully"}
     )
-
     def post(self, request):
-        logout(request)  
-        return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
+        try:
+            refresh_token = request.data.get("refresh_token")
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()  
+            logout(request)
+            return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+
     
 
 class ChangePasswordView(APIView):
@@ -141,7 +132,7 @@ class PasswordResetRequestView(APIView):
     def post(self, request):
         serializer = PasswordResetSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.send_password_reset_email(request)
+            serializer.save(request=request)
             return Response({"message": "Password reset email sent!"}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
