@@ -4,7 +4,7 @@ from rest_framework import viewsets, status , filters
 from customerApi.serializers import UserSerializer
 from .serializers import ProductSerializer,CarouselSerializer
 from rest_framework.response import Response
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, AllowAny
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from .models import Product,Carousel
@@ -97,7 +97,8 @@ class AdminCustomerListView(APIView):
         responses={200: UserSerializer(many=True)}
     )
     def get(self, request):
-        users = User.objects.all().order_by("-created_at")
+        users = User.objects.filter(user_type="customer").order_by("-created_at")
+
         paginator = self.pagination_class()  
         paginated_users = paginator.paginate_queryset(users, request)
         serializer = UserSerializer(paginated_users, many=True)
@@ -118,19 +119,32 @@ class AdminCustomerDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [IsSuperUser]  
 
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['product_type']  
+    filterset_fields = ['product_type'] 
+
     ordering_fields = ['created_at']
     ordering = ['-created_at']  
 
     pagination_class = MyLimitOffsetPagination 
 
-# Carousel ViewSet
+    def get_queryset(self):
+        queryset = Product.objects.all()
+
+        product_type = self.request.query_params.get('product_type')
+
+        if product_type:
+            queryset = queryset.filter(product_type=product_type)
+
+        return queryset
+
 class CarouselViewSet(viewsets.ModelViewSet):
     queryset = Carousel.objects.all()
     serializer_class = CarouselSerializer
-    permission_classes = [IsSuperUser]
+
+    def get_permissions(self):
+        if self.action == "list": 
+            return [AllowAny()]
+        return [IsSuperUser()]  
