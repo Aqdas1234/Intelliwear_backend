@@ -97,7 +97,8 @@ class AdminCustomerListView(APIView):
         responses={200: UserSerializer(many=True)}
     )
     def get(self, request):
-        users = User.objects.all().order_by("-created_at")
+        users = User.objects.filter(user_type="customer").order_by("-created_at")
+
         paginator = self.pagination_class()  
         paginated_users = paginator.paginate_queryset(users, request)
         serializer = UserSerializer(paginated_users, many=True)
