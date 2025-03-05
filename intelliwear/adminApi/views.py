@@ -4,7 +4,7 @@ from rest_framework import viewsets, status , filters
 from customerApi.serializers import UserSerializer
 from .serializers import ProductSerializer,CarouselSerializer
 from rest_framework.response import Response
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, AllowAny
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from .models import Product,Carousel
@@ -143,4 +143,8 @@ class ProductViewSet(viewsets.ModelViewSet):
 class CarouselViewSet(viewsets.ModelViewSet):
     queryset = Carousel.objects.all()
     serializer_class = CarouselSerializer
-    permission_classes = [IsSuperUser]
+
+    def get_permissions(self):
+        if self.action == "list": 
+            return [AllowAny()]
+        return [IsSuperUser()]  
