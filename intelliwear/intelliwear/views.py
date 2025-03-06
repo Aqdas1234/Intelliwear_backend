@@ -11,10 +11,9 @@ from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
-from datetime import  timezone
+from django.utils import timezone
 from zoneinfo import ZoneInfo
 
-User = get_user_model() 
 
 pkt = ZoneInfo("Asia/Karachi")
 
