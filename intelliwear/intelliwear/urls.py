@@ -1,26 +1,13 @@
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from .views import RegisterView,LoginView,LogoutView,ChangePasswordView,PasswordResetConfirmView,PasswordResetRequestView
 from django.contrib import admin
 from django.urls import path,include
 from rest_framework_simplejwt.views import TokenObtainPairView , TokenRefreshView
-from drf_yasg.views import get_schema_view
-from drf_yasg import openapi
 from rest_framework import permissions
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from django.conf import settings
 from django.conf.urls.static import static
-
-schema_view = get_schema_view(
-    openapi.Info(
-        title = "Intelliwear Api",
-        default_version= 'v1',
-        description= "Api Documentation of Intelliwear",
-    
-    ),
-    public=True,
-    authentication_classes=[JWTAuthentication],
-    permission_classes=(permissions.AllowAny,),
-)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -37,7 +24,9 @@ urlpatterns = [
     path('customer/', include('customerApi.urls')),
     path('api-auth/', include('rest_framework.urls')),
 
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='swagger-ui'),
+    path('schema/', SpectacularAPIView.as_view(), name='schema'),
+
+    path("swagger/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
 
 ]
 

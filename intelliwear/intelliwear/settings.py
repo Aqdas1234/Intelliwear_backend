@@ -53,7 +53,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'customerApi',
     'adminApi',
-    'drf_yasg',
+    'drf_spectacular',
+    'drf_spectacular_sidecar', 
     'corsheaders',
 ]
 
@@ -181,6 +182,8 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser', 
+        'rest_framework.parsers.MultiPartParser', 
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -189,6 +192,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',  # Allow unauthenticated access by default
     ),
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 
@@ -226,7 +230,7 @@ FRONTEND_URL = env("FRONTEND_URL")
 DELIVERY_PARTNER_API_URL = "https://delivery-partner-api.com/notify"
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME':timedelta(days=1),
+    'ACCESS_TOKEN_LIFETIME':timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME':timedelta(days=7),
 }
 
