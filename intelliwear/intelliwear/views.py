@@ -12,13 +12,12 @@ from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
 from django.utils import  timezone
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 from zoneinfo import ZoneInfo
 
 User = get_user_model() 
 
 pkt = ZoneInfo("Asia/Karachi")
-
-from drf_yasg.utils import swagger_auto_schema
 
 User = get_user_model() 
 
@@ -27,10 +26,11 @@ class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
-    @swagger_auto_schema(
-        request_body=UserSerializer,
-        responses={201: UserSerializer(), 400: "Invalid data"}
+    @extend_schema(
+        request=UserSerializer,  
+        responses={201: UserSerializer, 400: "Invalid data"}
     )
+
     def post(self, request):
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
@@ -44,13 +44,11 @@ class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
-    @swagger_auto_schema(
-        request_body=LoginSerializer,
-        responses={
-            200: "Login successful, redirecting...",
-            400: "Invalid credentials"
-        }
+    @extend_schema(
+    request=LoginSerializer,
+    responses={200: "Login successful", 400: "Invalid credentials"}
     )
+
     def post(self, request):
         email = request.data.get("email")
         password = request.data.get("password")
@@ -78,7 +76,10 @@ class LoginView(APIView):
                         "expires_at": refresh_token_expiry.isoformat()
                     }
                 },
-                "user_info": user_data
+                 "user_info": {
+                    "user_id": user.id, 
+                    **user_data 
+                }
             }, status=status.HTTP_200_OK)
 
         return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
@@ -86,7 +87,7 @@ class LoginView(APIView):
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    @swagger_auto_schema(
+    @extend_schema(
         responses={200: "Logged out successfully"}
     )
     def post(self, request):
@@ -105,10 +106,19 @@ class LogoutView(APIView):
 class ChangePasswordView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
-    
-    @swagger_auto_schema(
-        request_body=ChangePasswordSerializer,
-        responses={200: "Password updated successfully", 400: "Invalid data"}
+
+    @extend_schema(
+    request=ChangePasswordSerializer,
+    responses={
+        200: OpenApiResponse(
+            response={"message": "Password updated successfully"},
+            description="Password updated successfully."
+        ),
+        400: OpenApiResponse(
+            response={"error": "Invalid data"},
+            description="Invalid data provided."
+        )
+    }
     )
 
     def post(self, request):
@@ -123,9 +133,9 @@ class PasswordResetRequestView(APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
-    
-    @swagger_auto_schema(
-        request_body=PasswordResetSerializer,
+
+    @extend_schema(
+        request=PasswordResetSerializer,
         responses={200: "Password reset email sent!", 400: "Invalid data"}
     )
 
@@ -140,14 +150,10 @@ class PasswordResetConfirmView(APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]  # No authentication required
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]  # DRF HTML form support
-    
-    @swagger_auto_schema(
-        request_body=PasswordResetConfirmSerializer,
+
+    @extend_schema(
+        request=PasswordResetConfirmSerializer,
         responses={200: "Password reset successful", 400: "Invalid token or data"},
-        # manual_parameters=[
-        #     openapi.Parameter('uidb64', openapi.IN_PATH, description="Base64 encoded User ID", type=openapi.TYPE_STRING),
-        #     openapi.Parameter('token', openapi.IN_PATH, description="Password reset token", type=openapi.TYPE_STRING),
-        # ]
     )
 
     def post(self, request, uidb64, token):

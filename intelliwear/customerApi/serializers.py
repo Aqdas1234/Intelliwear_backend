@@ -12,7 +12,6 @@ from django.contrib.auth import get_user_model
 from adminApi.serializers import ProductSerializer,MediaSerializer
 from .models import User, Cart, Order, OrderItem, Review, ShippingAddress, Payment
 from adminApi.models import Product
-from django.conf import settings
 
 User = get_user_model() 
 
