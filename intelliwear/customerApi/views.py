@@ -1,24 +1,24 @@
+from itertools import chain
 import stripe
-#from .models import Order, OrderItem, Payment, ShippingAddress, Cart
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import transaction
 #from django.forms import ValidationError
 import uuid
 from django.shortcuts import get_object_or_404
-#import requests
 from rest_framework.views import APIView
 #from django.core.mail import send_mail
 from django.conf import settings
 from adminApi.models import Product
 from rest_framework.response import Response
-from rest_framework import status,generics, pagination
+from rest_framework import status,generics, pagination,filters
 from rest_framework.permissions import IsAuthenticated,BasePermission,AllowAny
-#from django.contrib.auth.models import User
 from .models import Cart,OrderItem,Review,Order,Payment,ShippingAddress
 from .serializers import ProductListSerializer,ProductDetailSerializer,OrderSerializer,ReviewSerializer, UserSerializer
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from drf_yasg.utils import swagger_auto_schema
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.pagination import PageNumberPagination
 
 
 class IsCustomerUser(BasePermission):
@@ -57,17 +57,87 @@ class CustomerProfileView(APIView):
         request.user.delete()  # Delete the user account
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+
+class HomePageProductsView(generics.ListAPIView):
+    serializer_class = ProductListSerializer
+    permission_classes = [AllowAny]
+    def get_queryset(self):
+        clothes = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')[:8]
+        shoes = Product.objects.filter(product_type='SHOES').order_by('-created_at')[:8]
+        accessories = Product.objects.filter(product_type='ACCESSORIES').order_by('-created_at')[:8]
+        return chain(clothes,shoes,accessories)
     
 
 class CategoryProductsListView(generics.ListAPIView):
+    permission_classes = [AllowAny]
     serializer_class = ProductListSerializer
-
     def get_queryset(self):
         gender = self.kwargs['gender'].upper()  
-        clothes = Product.objects.filter(product_type='CLOTHES', gender=gender)[:5]
-        shoes = Product.objects.filter(product_type='SHOES', gender=gender)[:5]
-        accessories = Product.objects.filter(product_type='ACCESSORIES', gender=gender)[:5]
-        return list(clothes) + list(shoes) + list(accessories)
+        clothes = Product.objects.filter(product_type='CLOTHES', gender=gender)[:8]
+        shoes = Product.objects.filter(product_type='SHOES', gender=gender)[:8]
+        accessories = Product.objects.filter(product_type='ACCESSORIES', gender=gender)[:8]
+        return chain(clothes,shoes,accessories)
+
+
+class CustomPagination(PageNumberPagination):
+    page_size = 32  
+    page_size_query_param = 'page_size'  
+    max_page_size = 100  
+
+
+class ClothesListView(generics.ListAPIView):
+    serializer_class = ProductListSerializer
+    permission_classes = [AllowAny]
+    pagination_class = CustomPagination
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['gender', 'colors', 'sizes'] 
+    search_fields = ['name', 'description']
+    ordering_fields = ['price', 'created_at']
+
+    def get_queryset(self):
+        queryset = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')
+        gender = self.request.query_params.get('gender', None)
+        if gender:
+            queryset = queryset.filter(gender=gender.upper())
+        return queryset
+
+class ShoesListView(generics.ListAPIView):
+    serializer_class = ProductListSerializer
+    permission_classes = [AllowAny]
+    pagination_class = CustomPagination
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['gender', 'colors', 'sizes'] 
+    search_fields = ['name', 'description']
+    ordering_fields = ['price', 'created_at']
+
+    def get_queryset(self):
+        queryset = Product.objects.filter(product_type='SHOES').order_by('-created_at')
+        gender = self.request.query_params.get('gender', None)
+        if gender:
+            queryset = queryset.filter(gender=gender.upper())
+        return queryset
+
+
+class AccessoriesListView(generics.ListAPIView):
+    serializer_class = ProductListSerializer
+    permission_classes = [AllowAny]
+    pagination_class = CustomPagination
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['gender', 'colors', 'sizes'] 
+    search_fields = ['name', 'description']
+    ordering_fields = ['price', 'created_at']
+
+    def get_queryset(self):
+        queryset = Product.objects.filter(product_type='ACCESSORIES').order_by('-created_at')
+        gender = self.request.query_params.get('gender', None)
+        if gender:
+            queryset = queryset.filter(gender=gender.upper())
+        return queryset
+
+
 
 '''
 class ProductDetailView(generics.RetrieveAPIView):
@@ -433,7 +503,6 @@ class StripeWebhookView(APIView):
                     order.status = "in_process" 
                     payment.save()
                     order.save()
-
                     # Remove only the ordered items from the cart
                     ordered_products = order.items.values_list("product_id", flat=True)
                     Cart.objects.filter(user=order.user, product_id__in=ordered_products).delete()
