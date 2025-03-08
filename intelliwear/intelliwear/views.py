@@ -14,10 +14,13 @@ from django.conf import settings
 from django.utils import  timezone
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from zoneinfo import ZoneInfo
+from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.response import Response
 
 User = get_user_model() 
 
-pkt = ZoneInfo("Asia/Karachi")
+pk_timezone = ZoneInfo("Asia/Karachi")
 
 User = get_user_model() 
 
@@ -61,19 +64,22 @@ class LoginView(APIView):
             refresh = RefreshToken.for_user(user)
             access_token = refresh.access_token
 
-            # Use Django timezone
-            access_token_expiry = timezone.now() + settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"]
-            refresh_token_expiry = timezone.now() + settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]
+            utc_access_expiry = timezone.now() + settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"]
+            utc_refresh_expiry = timezone.now() + settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]
+
+            pk_access_token_expiry = utc_access_expiry.astimezone(pk_timezone)
+            pk_refresh_token_expiry = utc_refresh_expiry.astimezone(pk_timezone)
+        
 
             return Response({
                 "token": {
                     "access_token": {
                         "token": str(access_token),
-                        "expires_at": access_token_expiry.isoformat()
+                        "expires_at": pk_access_token_expiry.isoformat()
                     },
                     "refresh_token": {
                         "token": str(refresh),
-                        "expires_at": refresh_token_expiry.isoformat()
+                        "expires_at": pk_refresh_token_expiry.isoformat()
                     }
                 },
                  "user_info": {
@@ -173,3 +179,25 @@ class PasswordResetConfirmView(APIView):
 
         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
             return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+
+class CustomTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        
+        refresh = RefreshToken(request.data['refresh'])
+        
+        utc_expiry = timezone.datetime.fromtimestamp(
+            refresh.access_token['exp'], 
+            tz=timezone.get_current_timezone()
+        )
+
+        pk_expiry = utc_expiry.astimezone(pk_timezone)
+        
+        response.data = {
+            "access_token": {
+                "token": response.data['access'],
+                "expires_at": pk_expiry.isoformat()
+            }
+        }
+        
+        return response
