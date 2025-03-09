@@ -15,6 +15,7 @@ from django.contrib.auth import get_user_model
 User = get_user_model() 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from rest_framework.parsers import MultiPartParser, FormParser
 
 # Create your views here.
 class IsSuperUser(BasePermission):
@@ -120,7 +121,8 @@ class AdminCustomerDetailView(APIView):
 
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
-    permission_classes = [IsSuperUser]  
+    permission_classes = [IsSuperUser] 
+    parser_classes = (MultiPartParser, FormParser)  
 
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['product_type'] 

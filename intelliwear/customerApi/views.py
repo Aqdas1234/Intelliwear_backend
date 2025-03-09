@@ -61,6 +61,11 @@ class CustomerProfileView(APIView):
 class HomePageProductsView(generics.ListAPIView):
     serializer_class = ProductListSerializer
     permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        responses={200: ProductListSerializer(many=True)},
+        operation_description="Retrieve the latest products from each category for the homepage."
+    )
     def get_queryset(self):
         clothes = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')[:8]
         shoes = Product.objects.filter(product_type='SHOES').order_by('-created_at')[:8]
@@ -71,6 +76,11 @@ class HomePageProductsView(generics.ListAPIView):
 class CategoryProductsListView(generics.ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = ProductListSerializer
+
+    @swagger_auto_schema(
+        responses={200: ProductListSerializer(many=True)},
+        operation_description="Retrieve category-specific products based on gender."
+    )
     def get_queryset(self):
         gender = self.kwargs['gender'].upper()  
         clothes = Product.objects.filter(product_type='CLOTHES', gender=gender)[:8]
@@ -95,6 +105,10 @@ class ClothesListView(generics.ListAPIView):
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
+    @swagger_auto_schema(
+        responses={200: ProductListSerializer(many=True)},
+        operation_description="Retrieve a paginated list of clothes products with filtering options."
+    )
     def get_queryset(self):
         queryset = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')
         gender = self.request.query_params.get('gender', None)
@@ -112,6 +126,10 @@ class ShoesListView(generics.ListAPIView):
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
+    @swagger_auto_schema(
+        responses={200: ProductListSerializer(many=True)},
+        operation_description="Retrieve a paginated list of shoe products with filtering options."
+    )
     def get_queryset(self):
         queryset = Product.objects.filter(product_type='SHOES').order_by('-created_at')
         gender = self.request.query_params.get('gender', None)
@@ -130,6 +148,10 @@ class AccessoriesListView(generics.ListAPIView):
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
+    @swagger_auto_schema(
+        responses={200: ProductListSerializer(many=True)},
+        operation_description="Retrieve a paginated list of accessories products with filtering options."
+    )
     def get_queryset(self):
         queryset = Product.objects.filter(product_type='ACCESSORIES').order_by('-created_at')
         gender = self.request.query_params.get('gender', None)
