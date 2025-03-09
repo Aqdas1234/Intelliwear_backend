@@ -67,7 +67,7 @@ class HomePageProductsView(generics.ListAPIView):
 
     @extend_schema(
         responses={200: ProductListSerializer(many=True)},
-        operation_description="Retrieve the latest products from each category for the homepage."
+        description="Retrieve the latest products from each category for the homepage."
     )
     def get_queryset(self):
         clothes = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')[:8]
@@ -82,7 +82,7 @@ class CategoryProductsListView(generics.ListAPIView):
 
     @extend_schema(
         responses={200: ProductListSerializer(many=True)},
-        operation_description="Retrieve category-specific products based on gender."
+        description="Retrieve category-specific products based on gender."
     )
     def get_queryset(self):
         gender = self.kwargs['gender'].upper()  
@@ -110,7 +110,7 @@ class ClothesListView(generics.ListAPIView):
 
     @extend_schema(
         responses={200: ProductListSerializer(many=True)},
-        operation_description="Retrieve a paginated list of clothes products with filtering options."
+        description="Retrieve a paginated list of clothes products with filtering options."
     )
     def get_queryset(self):
         queryset = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')
@@ -131,7 +131,7 @@ class ShoesListView(generics.ListAPIView):
 
     @extend_schema(
         responses={200: ProductListSerializer(many=True)},
-        operation_description="Retrieve a paginated list of shoe products with filtering options."
+        description="Retrieve a paginated list of shoe products with filtering options."
     )
     def get_queryset(self):
         queryset = Product.objects.filter(product_type='SHOES').order_by('-created_at')
@@ -153,7 +153,7 @@ class AccessoriesListView(generics.ListAPIView):
 
     @extend_schema(
         responses={200: ProductListSerializer(many=True)},
-        operation_description="Retrieve a paginated list of accessories products with filtering options."
+        description="Retrieve a paginated list of accessories products with filtering options."
     )
     def get_queryset(self):
         queryset = Product.objects.filter(product_type='ACCESSORIES').order_by('-created_at')
