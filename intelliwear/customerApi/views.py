@@ -16,7 +16,7 @@ from rest_framework.permissions import IsAuthenticated,BasePermission,AllowAny
 from .models import Cart,OrderItem,Review,Order,Payment,ShippingAddress
 from .serializers import ProductListSerializer,ProductDetailSerializer,OrderSerializer,ReviewSerializer, UserSerializer
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
-from drf_yasg.utils import swagger_auto_schema
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.pagination import PageNumberPagination
 
@@ -29,19 +29,21 @@ class CustomerProfileView(APIView):
     permission_classes = [IsCustomerUser]  # Ensure correct permission
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
-    @swagger_auto_schema(
-        responses={200: UserSerializer()},
-        operation_description="Get the profile details of the logged-in user."
+    @extend_schema(
+        responses={200: UserSerializer},
+        description="Get the profile details of the logged-in user."
     )
+
     def get(self, request):
         serializer = UserSerializer(request.user)  # Directly use User model
         return Response(serializer.data)
 
-    @swagger_auto_schema(
-        request_body=UserSerializer,
-        responses={200: UserSerializer()},
-        operation_description="Update the profile details of the logged-in user."
-    )        
+    @extend_schema(
+        request=UserSerializer,
+        responses={200: UserSerializer},
+        description="Update the profile details of the logged-in user."
+    )      
+
     def patch(self, request):
         serializer = UserSerializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
@@ -49,10 +51,11 @@ class CustomerProfileView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @swagger_auto_schema(
-        responses={204: "No Content"},
-        operation_description="Delete the user account."
-    )    
+    @extend_schema(
+        responses={204: OpenApiResponse(description="No Content")},
+        description="Delete the user account."
+    )   
+
     def delete(self, request):
         request.user.delete()  # Delete the user account
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -62,7 +65,7 @@ class HomePageProductsView(generics.ListAPIView):
     serializer_class = ProductListSerializer
     permission_classes = [AllowAny]
 
-    @swagger_auto_schema(
+    @extend_schema(
         responses={200: ProductListSerializer(many=True)},
         operation_description="Retrieve the latest products from each category for the homepage."
     )
@@ -77,7 +80,7 @@ class CategoryProductsListView(generics.ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = ProductListSerializer
 
-    @swagger_auto_schema(
+    @extend_schema(
         responses={200: ProductListSerializer(many=True)},
         operation_description="Retrieve category-specific products based on gender."
     )
@@ -105,7 +108,7 @@ class ClothesListView(generics.ListAPIView):
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
-    @swagger_auto_schema(
+    @extend_schema(
         responses={200: ProductListSerializer(many=True)},
         operation_description="Retrieve a paginated list of clothes products with filtering options."
     )
@@ -126,7 +129,7 @@ class ShoesListView(generics.ListAPIView):
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
-    @swagger_auto_schema(
+    @extend_schema(
         responses={200: ProductListSerializer(many=True)},
         operation_description="Retrieve a paginated list of shoe products with filtering options."
     )
@@ -148,7 +151,7 @@ class AccessoriesListView(generics.ListAPIView):
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
-    @swagger_auto_schema(
+    @extend_schema(
         responses={200: ProductListSerializer(many=True)},
         operation_description="Retrieve a paginated list of accessories products with filtering options."
     )

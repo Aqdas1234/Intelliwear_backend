@@ -11,6 +11,8 @@ from .models import Product,Carousel
 from django_filters.rest_framework import DjangoFilterBackend
 from .paginations import MyLimitOffsetPagination
 from django.contrib.auth import get_user_model
+from rest_framework.parsers import MultiPartParser, FormParser
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 #from .models import Product,Size,Color,Media
 User = get_user_model() 
 from drf_yasg.utils import swagger_auto_schema
@@ -22,12 +24,13 @@ class IsSuperUser(BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and request.user.user_type == 'admin')
     
+@extend_schema(tags=["Admin - Profile"])
 class ProfileView(APIView):
     permission_classes = [IsSuperUser]
 
-    @swagger_auto_schema(
+    @extend_schema(
         responses={200: UserSerializer()},
-        operation_description="Get the profile details of the logged-in admin."
+        description="Get the profile details of the logged-in admin."
     )
 
     def get(self, request):
@@ -35,10 +38,10 @@ class ProfileView(APIView):
         return Response(serializer.data)
 
     
-    @swagger_auto_schema(
-        request_body=UserSerializer,
+    @extend_schema(
+        request=UserSerializer,
         responses={200: UserSerializer()},
-        operation_description="Update the profile details of the logged-in admin."
+        description="Update the profile details of the logged-in admin."
     )    
 
     def patch(self, request):
@@ -86,14 +89,15 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 
 # Admin Customer List View
+@extend_schema(tags=["Admin - CustomersListView"])
 class AdminCustomerListView(APIView):
     permission_classes = [IsSuperUser]
-    pagination_class = MyLimitOffsetPagination  # Fix: Should be a class reference, not an instance
+    pagination_class = MyLimitOffsetPagination 
 
-    @swagger_auto_schema(
-        manual_parameters=[
-            openapi.Parameter("limit", openapi.IN_QUERY, description="Number of results per page", type=openapi.TYPE_INTEGER),
-            openapi.Parameter("offset", openapi.IN_QUERY, description="Pagination offset", type=openapi.TYPE_INTEGER)
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name="limit", description="Number of results per page", required=False, type=int),
+            OpenApiParameter(name="offset", description="Pagination offset", required=False, type=int)
         ],
         responses={200: UserSerializer(many=True)}
     )
@@ -105,20 +109,31 @@ class AdminCustomerListView(APIView):
         serializer = UserSerializer(paginated_users, many=True)
         return paginator.get_paginated_response(serializer.data)
 
-
+@extend_schema(tags=["Admin - Customers"])
 class AdminCustomerDetailView(APIView):
     permission_classes = [IsSuperUser]
+
+    @extend_schema(
+        responses={200: UserSerializer},
+        description="Retrieve details of a specific customer by user ID.",
+    )
 
     def get(self, request, user_id):  
         user = get_object_or_404(User, id=user_id)  
         serializer = UserSerializer(user) 
         return Response(serializer.data)
 
+    @extend_schema(
+        responses={204: OpenApiResponse(description="User deleted successfully")},
+        description="Delete a specific customer by user ID.",
+    )    
+
     def delete(self, request, user_id): 
         user = get_object_or_404(User, id=user_id)  
         user.delete() 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+@extend_schema(tags=["Admin - Products"])
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [IsSuperUser] 
@@ -132,6 +147,20 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     pagination_class = MyLimitOffsetPagination 
 
+    @extend_schema(
+        responses={200: ProductSerializer(many=True)},
+        parameters=[
+            OpenApiParameter(
+                name="product_type",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter products by type.",
+            )
+        ],
+        description="Retrieve a list of products with optional filtering by type.",
+    )
+
     def get_queryset(self):
         queryset = Product.objects.all()
 
@@ -142,9 +171,11 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+@extend_schema(tags=["Carousel"])
 class CarouselViewSet(viewsets.ModelViewSet):
-    queryset = Carousel.objects.all()
+    queryset = Carousel.objects.all().order_by("-created_at")
     serializer_class = CarouselSerializer
+    parser_classes = (MultiPartParser, FormParser) 
 
     def get_permissions(self):
         if self.action == "list": 

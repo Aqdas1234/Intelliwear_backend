@@ -11,13 +11,15 @@ from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
-from django.utils import timezone
+from django.utils import  timezone
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 from zoneinfo import ZoneInfo
+from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.response import Response
 
 
-pkt = ZoneInfo("Asia/Karachi")
-
-from drf_yasg.utils import swagger_auto_schema
+pk_timezone = ZoneInfo("Asia/Karachi")
 
 User = get_user_model() 
 
@@ -26,10 +28,11 @@ class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
-    @swagger_auto_schema(
-        request_body=UserSerializer,
-        responses={201: UserSerializer(), 400: "Invalid data"}
+    @extend_schema(
+        request=UserSerializer,  
+        responses={201: UserSerializer, 400: "Invalid data"}
     )
+
     def post(self, request):
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
@@ -43,13 +46,11 @@ class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
-    @swagger_auto_schema(
-        request_body=LoginSerializer,
-        responses={
-            200: "Login successful, redirecting...",
-            400: "Invalid credentials"
-        }
+    @extend_schema(
+    request=LoginSerializer,
+    responses={200: "Login successful", 400: "Invalid credentials"}
     )
+
     def post(self, request):
         email = request.data.get("email")
         password = request.data.get("password")
@@ -62,22 +63,28 @@ class LoginView(APIView):
             refresh = RefreshToken.for_user(user)
             access_token = refresh.access_token
 
-            # Use Django timezone
-            access_token_expiry = timezone.now() + settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"]
-            refresh_token_expiry = timezone.now() + settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]
+            utc_access_expiry = timezone.now() + settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"]
+            utc_refresh_expiry = timezone.now() + settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]
+
+            pk_access_token_expiry = utc_access_expiry.astimezone(pk_timezone)
+            pk_refresh_token_expiry = utc_refresh_expiry.astimezone(pk_timezone)
+        
 
             return Response({
                 "token": {
                     "access_token": {
                         "token": str(access_token),
-                        "expires_at": access_token_expiry.isoformat()
+                        "expires_at": pk_access_token_expiry.isoformat()
                     },
                     "refresh_token": {
                         "token": str(refresh),
-                        "expires_at": refresh_token_expiry.isoformat()
+                        "expires_at": pk_refresh_token_expiry.isoformat()
                     }
                 },
-                "user_info": user_data
+                 "user_info": {
+                    "user_id": user.id, 
+                    **user_data 
+                }
             }, status=status.HTTP_200_OK)
 
         return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
@@ -85,7 +92,7 @@ class LoginView(APIView):
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    @swagger_auto_schema(
+    @extend_schema(
         responses={200: "Logged out successfully"}
     )
     def post(self, request):
@@ -104,10 +111,19 @@ class LogoutView(APIView):
 class ChangePasswordView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
-    
-    @swagger_auto_schema(
-        request_body=ChangePasswordSerializer,
-        responses={200: "Password updated successfully", 400: "Invalid data"}
+
+    @extend_schema(
+    request=ChangePasswordSerializer,
+    responses={
+        200: OpenApiResponse(
+            response={"message": "Password updated successfully"},
+            description="Password updated successfully."
+        ),
+        400: OpenApiResponse(
+            response={"error": "Invalid data"},
+            description="Invalid data provided."
+        )
+    }
     )
 
     def post(self, request):
@@ -122,9 +138,9 @@ class PasswordResetRequestView(APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
-    
-    @swagger_auto_schema(
-        request_body=PasswordResetSerializer,
+
+    @extend_schema(
+        request=PasswordResetSerializer,
         responses={200: "Password reset email sent!", 400: "Invalid data"}
     )
 
@@ -139,14 +155,10 @@ class PasswordResetConfirmView(APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]  # No authentication required
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]  # DRF HTML form support
-    
-    @swagger_auto_schema(
-        request_body=PasswordResetConfirmSerializer,
+
+    @extend_schema(
+        request=PasswordResetConfirmSerializer,
         responses={200: "Password reset successful", 400: "Invalid token or data"},
-        # manual_parameters=[
-        #     openapi.Parameter('uidb64', openapi.IN_PATH, description="Base64 encoded User ID", type=openapi.TYPE_STRING),
-        #     openapi.Parameter('token', openapi.IN_PATH, description="Password reset token", type=openapi.TYPE_STRING),
-        # ]
     )
 
     def post(self, request, uidb64, token):
@@ -166,3 +178,25 @@ class PasswordResetConfirmView(APIView):
 
         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
             return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+
+class CustomTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        
+        refresh = RefreshToken(request.data['refresh'])
+        
+        utc_expiry = timezone.datetime.fromtimestamp(
+            refresh.access_token['exp'], 
+            tz=timezone.get_current_timezone()
+        )
+
+        pk_expiry = utc_expiry.astimezone(pk_timezone)
+        
+        response.data = {
+            "access_token": {
+                "token": response.data['access'],
+                "expires_at": pk_expiry.isoformat()
+            }
+        }
+        
+        return response

@@ -2,6 +2,8 @@ from django.db import models
 import uuid
 #from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+import os
+from django.conf import settings
 
 
 class Media(models.Model):
@@ -74,6 +76,13 @@ class Product(models.Model):
 
     def __str__(self):
         return f"{self.get_product_type_display()} - {self.name} ({self.get_gender_display()})"
+
+    def delete(self, *args, **kwargs):
+        if self.image:
+            image_path = os.path.join(settings.MEDIA_ROOT, str(self.image))
+            if os.path.isfile(image_path):
+                os.remove(image_path)
+        super().delete(*args, **kwargs)        
     
 class Carousel(models.Model):
     title = models.CharField(max_length=255)
@@ -83,3 +92,10 @@ class Carousel(models.Model):
 
     def __str__(self):
         return self.title
+
+    def delete(self, *args, **kwargs):
+        if self.image:
+            image_path = os.path.join(settings.MEDIA_ROOT, str(self.image))
+            if os.path.isfile(image_path):
+                os.remove(image_path)
+        super().delete(*args, **kwargs)    
