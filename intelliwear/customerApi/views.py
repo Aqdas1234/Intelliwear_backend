@@ -4,12 +4,13 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import transaction
 #from django.forms import ValidationError
+from decimal import Decimal
 import uuid
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 #from django.core.mail import send_mail
 from django.conf import settings
-from adminApi.models import Product
+from adminApi.models import Product, Size
 from rest_framework.response import Response
 from rest_framework import status,generics, pagination,filters
 from rest_framework.permissions import IsAuthenticated,BasePermission,AllowAny
@@ -104,7 +105,7 @@ class ClothesListView(generics.ListAPIView):
     pagination_class = CustomPagination
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['gender', 'colors', 'sizes'] 
+    filterset_fields = ['gender','size']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
@@ -125,7 +126,7 @@ class ShoesListView(generics.ListAPIView):
     pagination_class = CustomPagination
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['gender', 'colors', 'sizes'] 
+    filterset_fields = ['gender','size']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
@@ -147,7 +148,7 @@ class AccessoriesListView(generics.ListAPIView):
     pagination_class = CustomPagination
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['gender', 'colors', 'sizes'] 
+    filterset_fields = ['gender','size']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
@@ -178,6 +179,7 @@ class AddToCartView(APIView):
 
     def post(self, request):
         product_id = request.data.get('product_id')
+        size_id = request.data.get('size_id', None)  
         quantity = request.data.get('quantity', 1)
 
         try:
@@ -192,7 +194,19 @@ class AddToCartView(APIView):
         except Product.DoesNotExist:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        cart_item, created = Cart.objects.get_or_create(user=request.user, product=product)
+        if not size_id:
+            return Response({"error": "Size is required for all products."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            size = Size.objects.get(id=size_id)
+        except Size.DoesNotExist:
+            return Response({"error": "Invalid size selection."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not product.sizes.filter(id=size.id).exists():
+            return Response({"error": "Invalid size selection for this product."}, status=status.HTTP_400_BAD_REQUEST)
+
+        cart_item, created = Cart.objects.get_or_create(user=request.user, product=product, size=size)
+
         if not created:
             cart_item.quantity += quantity
             cart_item.save()
@@ -200,16 +214,59 @@ class AddToCartView(APIView):
         return Response({"message": "Product added to cart"}, status=status.HTTP_200_OK)
 
 
-
 class GoToCheckoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        cart_items = Cart.objects.filter(user=request.user)
+        cart_items = Cart.objects.filter(user=request.user).select_related("product", "size")
+
         if not cart_items.exists():
             return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
-        product_ids = list(cart_items.values_list("product__id", flat=True))
-        return Response({"product_ids": product_ids}, status=status.HTTP_200_OK)
+
+        cart_data = []
+        total_price = Decimal("0.00")
+
+        for item in cart_items:
+            product = item.product
+            size = item.size
+
+            if not size:
+                return Response(
+                    {"error": f"Size is missing for product '{product.name}'."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if not product.sizes.filter(id=size.id).exists():
+                return Response(
+                    {"error": f"Invalid size selection for '{product.name}'."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if product.available_stock < item.quantity:
+                return Response(
+                    {"error": f"Product '{product.name}' is out of stock."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            item_total = Decimal(str(product.price)) * item.quantity
+            total_price += item_total
+
+            cart_data.append({
+                "product_id": product.id,
+                "name": product.name,
+                "image": request.build_absolute_uri(product.image.url),
+                "price": str(product.price),  # Convert Decimal to string for JSON response
+                "size": size.size,  # Always present now
+                "quantity": item.quantity,
+                "item_total": str(item_total)  # Convert Decimal to string
+            })
+
+        return Response(
+            {"cart_items": cart_data, "total_price": str(total_price)}, 
+            status=status.HTTP_200_OK
+        )
+
+
 '''   
 #place Order
 class PlaceOrderView(APIView):

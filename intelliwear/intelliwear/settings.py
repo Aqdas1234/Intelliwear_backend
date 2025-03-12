@@ -54,13 +54,13 @@ INSTALLED_APPS = [
     'django_filters',
     'rest_framework',
     'rest_framework_simplejwt',
+    'cloudinary',
+    'cloudinary_storage',
     'customerApi',
     'adminApi',
     'drf_spectacular',
     'drf_spectacular_sidecar', 
     'corsheaders',
-    'cloudinary',
-    'cloudinary_storage',
 ]
 
 MIDDLEWARE = [
@@ -174,12 +174,12 @@ STATICFILES_DIRS =[os.path.join(BASE_DIR,'static')]
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': env('CLOUDINARY_CLOUD_NAME'),
     'API_KEY': env('CLOUDINARY_API_KEY'),
-    'API_SECRET': env('CLOUDINARY_API_SECRET')
+    'API_SECRET': env('CLOUDINARY_API_SECRET'),
+    'secure': True
 }
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-MEDIA_URL = 'https://res.cloudinary.com/{}/'.format(env('CLOUDINARY_CLOUD_NAME'))
-
+MEDIA_URL = f"https://res.cloudinary.com/{env('CLOUDINARY_CLOUD_NAME')}/"
 '''
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

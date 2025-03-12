@@ -2,7 +2,7 @@ from django.utils import timezone
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.exceptions import ValidationError
-from adminApi.models import Product
+from adminApi.models import Product,Size
 import uuid
 from django.core.validators import MinValueValidator, MaxValueValidator
 
@@ -55,14 +55,21 @@ class User(AbstractUser):
 class Cart(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=2)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    size = models.ForeignKey(Size, on_delete=models.CASCADE,) 
     quantity = models.PositiveIntegerField(default=1)
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'product')  
+        unique_together = ('user', 'product', 'size')  # Ensures size uniqueness
 
     def __str__(self):
-        return f"{self.user.email} - {self.product.name} ({self.quantity})"
+        return f"{self.user.email} - {self.product.name} (Size: {self.size.size}) (Qty: {self.quantity})"
+
+    def clean(self):
+        if not self.size:
+            raise ValidationError("Size is required for all products.")
+
+
 
 class ShippingAddress(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=2)
@@ -112,11 +119,16 @@ class Order(models.Model):
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    size = models.ForeignKey(Size, on_delete=models.CASCADE) 
     quantity = models.PositiveIntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):
-        return f"{self.product.name} x {self.quantity}"
+        return f"{self.product.name} (Size: {self.size.size}) x {self.quantity}"
+
+    def clean(self):
+        if not self.size:
+            raise ValidationError("Size is required for all products.")
 
 # Review Model
 class Review(models.Model):

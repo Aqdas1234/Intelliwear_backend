@@ -140,11 +140,9 @@ class ProductViewSet(viewsets.ModelViewSet):
     parser_classes = (MultiPartParser, FormParser)  
 
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['product_type'] 
-
+    filterset_fields = ['product_type','sizes'] 
     ordering_fields = ['created_at']
     ordering = ['-created_at']  
-
     pagination_class = MyLimitOffsetPagination 
 
     @extend_schema(
@@ -163,12 +161,12 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Product.objects.all()
-
         product_type = self.request.query_params.get('product_type')
-
+        size = self.request.query_params.get('size')  
         if product_type:
             queryset = queryset.filter(product_type=product_type)
-
+        if size:
+            queryset = queryset.filter(sizes__size=size)  
         return queryset
 
 @extend_schema(tags=["Carousel"])

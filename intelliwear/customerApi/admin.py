@@ -25,8 +25,9 @@ class CustomUserAdmin(UserAdmin):
 # Cart
 @admin.register(Cart)
 class CartAdmin(admin.ModelAdmin):
-    list_display = ('user', 'product', 'quantity', 'added_at')
+    list_display = ('user', 'product', 'size', 'quantity', 'added_at')
     search_fields = ('user__email', 'product__name')
+    list_filter = ('size',)
 
 # Order & Order Item
 @admin.register(Order)
@@ -37,8 +38,9 @@ class OrderAdmin(admin.ModelAdmin):
 
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
-    list_display = ('id', 'order', 'product', 'quantity', 'price')
+    list_display = ('id', 'order', 'size', 'product', 'quantity', 'price')
     search_fields = ('order__id', 'product__name')
+    list_filter = ('size',) 
 
 # Review
 @admin.register(Review)

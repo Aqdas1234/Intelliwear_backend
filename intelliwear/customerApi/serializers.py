@@ -8,12 +8,12 @@ from django.urls import reverse
 from rest_framework.validators import UniqueValidator
 from django.core.validators import MinValueValidator,MaxValueValidator
 from django.conf import settings  
-from django.contrib.auth import get_user_model
-from adminApi.serializers import ProductSerializer,MediaSerializer
+#from django.contrib.auth import get_user_model
+from adminApi.serializers import ProductSerializer,MediaSerializer, SizeSerializer
 from .models import User, Cart, Order, OrderItem, Review, ShippingAddress, Payment
-from adminApi.models import Product
+from adminApi.models import Product, Size
 
-User = get_user_model() 
+
 
 class UserSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(validators=[UniqueValidator(queryset=User.objects.all())])  
@@ -98,20 +98,47 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         if data["new_password"] != data["confirm_password"]:
             raise serializers.ValidationError({"error": "Passwords do not match"})
         return data
-    
+
+class ProductListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'price', 'description', 'image']
+
+
+class ProductDetailSerializer(serializers.ModelSerializer):
+    media = MediaSerializer(many=True, read_only=True)
+    sizes = SizeSerializer(many=True, read_only=True)
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'price','image', 'description', 'media','sizes']
+
 class CartSerializer(serializers.ModelSerializer):
-    product = ProductSerializer() 
+    product = ProductSerializer(read_only=True)
     product_name = serializers.ReadOnlyField(source='product.name')
+    size = serializers.PrimaryKeyRelatedField(queryset=Size.objects.all()) 
 
     class Meta:
         model = Cart
-        fields = ['id', 'product', 'product_name', 'quantity']
+        fields = ['id', 'product', 'product_name', 'size', 'quantity']
+
+    def validate_size(self, value):
+        if value is None:
+            raise serializers.ValidationError("Size is required for all products.")
+        return value
 
 #place order
 class OrderItemSerializer(serializers.ModelSerializer):
+    size = serializers.PrimaryKeyRelatedField(queryset=Size.objects.all())  # Required input field
+
     class Meta:
         model = OrderItem
-        fields = ['product', 'quantity', 'price']
+        fields = ['product', 'size', 'quantity', 'price']
+
+    def validate_size(self, value):
+        if value is None:
+            raise serializers.ValidationError("Size is required for all products.")
+        return value
+
 
 class ShippingAddressSerializer(serializers.ModelSerializer):
     class Meta:
@@ -147,18 +174,7 @@ class ReviewSerializer(serializers.ModelSerializer):
         model = Review
         fields = ['id', 'product', 'user', 'rating', 'comment', 'created_at']
 
-class ProductListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = ['id', 'name', 'price', 'description', 'image']
 
-
-class ProductDetailSerializer(serializers.ModelSerializer):
-    media = MediaSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Product
-        fields = ['id', 'name', 'price','image', 'description', 'media']
 
 '''
 
