@@ -3,12 +3,13 @@ import stripe
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import transaction
+from django.template.loader import render_to_string
 #from django.forms import ValidationError
 from decimal import Decimal
 import uuid
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
-#from django.core.mail import send_mail
+from django.core.mail import send_mail
 from django.conf import settings
 from adminApi.models import Product, Size
 from rest_framework.response import Response
@@ -173,13 +174,15 @@ class ProductDetailView(generics.RetrieveAPIView):
 
 #Cart 
 
+from django.db import transaction
+
 class AddToCartView(APIView):
     permission_classes = [IsCustomerUser]  
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
     def post(self, request):
         product_id = request.data.get('product_id')
-        size_id = request.data.get('size_id', None)  
+        size_id = request.data.get('size_id')  
         quantity = request.data.get('quantity', 1)
 
         try:
@@ -198,20 +201,33 @@ class AddToCartView(APIView):
             return Response({"error": "Size is required for all products."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            size = Size.objects.get(id=size_id)
+            with transaction.atomic():  
+                size = Size.objects.select_for_update().get(id=size_id, product=product)  # Lock the size row
+                
+                # Ensure requested quantity does not exceed available stock
+                if quantity > size.quantity:
+                    return Response(
+                        {"error": f"Only {size.quantity} items available in stock for this size."}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                cart_item, created = Cart.objects.get_or_create(user=request.user, product=product, size=size)
+
+                if not created:
+                    new_quantity = cart_item.quantity + quantity
+                    if new_quantity > size.quantity:
+                        return Response(
+                            {"error": f"Cannot add more than {size.quantity} items of this size to the cart."}, 
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    cart_item.quantity = new_quantity
+                    cart_item.save()
+
         except Size.DoesNotExist:
             return Response({"error": "Invalid size selection."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not product.sizes.filter(id=size.id).exists():
-            return Response({"error": "Invalid size selection for this product."}, status=status.HTTP_400_BAD_REQUEST)
-
-        cart_item, created = Cart.objects.get_or_create(user=request.user, product=product, size=size)
-
-        if not created:
-            cart_item.quantity += quantity
-            cart_item.save()
-
         return Response({"message": "Product added to cart"}, status=status.HTTP_200_OK)
+
 
 
 class GoToCheckoutView(APIView):
@@ -226,40 +242,33 @@ class GoToCheckoutView(APIView):
         cart_data = []
         total_price = Decimal("0.00")
 
-        for item in cart_items:
-            product = item.product
-            size = item.size
+        try:
+            with transaction.atomic():  # Ensure stock checks are atomic
+                for item in cart_items:
+                    product = item.product
+                    size = Size.objects.select_for_update().get(id=item.size.id)  # Lock the size row
 
-            if not size:
-                return Response(
-                    {"error": f"Size is missing for product '{product.name}'."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                    if size.quantity < item.quantity:
+                        return Response(
+                            {"error": f"Only {size.quantity} items available in stock for '{product.name}' (Size: {size.size})."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
 
-            if not product.sizes.filter(id=size.id).exists():
-                return Response(
-                    {"error": f"Invalid size selection for '{product.name}'."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                    item_total = Decimal(str(product.price)) * item.quantity
+                    total_price += item_total
 
-            if product.available_stock < item.quantity:
-                return Response(
-                    {"error": f"Product '{product.name}' is out of stock."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                    cart_data.append({
+                        "product_id": product.id,
+                        "name": product.name,
+                        "image": request.build_absolute_uri(product.image.url),
+                        "price": str(product.price),
+                        "size": size.size,
+                        "quantity": item.quantity,
+                        "item_total": str(item_total)
+                    })
 
-            item_total = Decimal(str(product.price)) * item.quantity
-            total_price += item_total
-
-            cart_data.append({
-                "product_id": product.id,
-                "name": product.name,
-                "image": request.build_absolute_uri(product.image.url),
-                "price": str(product.price),  # Convert Decimal to string for JSON response
-                "size": size.size,  # Always present now
-                "quantity": item.quantity,
-                "item_total": str(item_total)  # Convert Decimal to string
-            })
+        except Size.DoesNotExist:
+            return Response({"error": "Invalid size selection."}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(
             {"cart_items": cart_data, "total_price": str(total_price)}, 
@@ -478,15 +487,45 @@ class PlaceOrderViewStripe(APIView):
         if not cart_items.exists():
             return Response({"error": "Selected products not in cart"}, status=status.HTTP_400_BAD_REQUEST)
 
-        total_price = sum(item.product.price * item.quantity for item in cart_items)
-        payment_method = request.data.get("payment_method", "cod")
+        total_price = Decimal("0.00")
+        order_items = []
+
         try:
             with transaction.atomic():
+                # **Stock Validation Before Order**
+                for item in cart_items:
+                    size = item.size
+                    if not size:
+                        return Response({"error": f"Size missing for product '{item.product.name}'."}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    if size.quantity < item.quantity:
+                        return Response(
+                            {"error": f"Only {size.quantity} items available in stock for '{item.product.name}' (Size: {size.size})."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    item_total = Decimal(str(item.product.price)) * item.quantity
+                    total_price += item_total
+
+                # **Create Order**
                 order = Order.objects.create(user=request.user, total_price=total_price, status="pending")
-                OrderItem.objects.bulk_create([
-                    OrderItem(order=order, product=item.product, quantity=item.quantity, price=item.product.price)
-                    for item in cart_items
-                ])
+
+                # **Create Order Items**
+                for item in cart_items:
+                    order_items.append(OrderItem(
+                        order=order,
+                        product=item.product,
+                        size=item.size,  # **Include Size**
+                        quantity=item.quantity,
+                        price=item.product.price
+                    ))
+                    # **Reduce Stock**
+                    item.size.quantity -= item.quantity
+                    item.size.save()
+
+                OrderItem.objects.bulk_create(order_items)
+
+                # **Create Shipping Address**
                 ShippingAddress.objects.create(
                     user=request.user,
                     order=order,
@@ -495,22 +534,28 @@ class PlaceOrderViewStripe(APIView):
                     address=request.data.get("address", ""),
                     phone=request.data.get("phone", "")
                 )
+
                 transaction_id = str(uuid.uuid4())
 
-                if payment_method == "cod":
-                    payment = Payment.objects.create(
+                if request.data.get("payment_method") == "cod":
+                    # **Cash on Delivery (COD)**
+                    Payment.objects.create(
                         user=request.user,
                         order=order,
-                        payment_method="COD",
+                        payment_method="cod",
                         transaction_id=transaction_id,
                         payment_status="Completed"
                     )
                     order.status = "shipped"
                     order.save()
+
+                    # **Remove Items from Cart**
+                    cart_items.delete()
+
                     return Response({"message": "Order placed successfully", "order_id": order.id}, status=status.HTTP_201_CREATED)
 
-                elif payment_method == "stripe":
-                    # Create Stripe Checkout Session
+                elif request.data.get("payment_method") == "stripe":
+                    # **Stripe Payment Process**
                     checkout_session = stripe.checkout.Session.create(
                         payment_method_types=["card"],
                         line_items=[{
@@ -543,10 +588,11 @@ class PlaceOrderViewStripe(APIView):
         except Exception as e:
             return Response({"error": f"Order placement failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class paymentFailView(APIView):
     def post(self, request):
         return Response({"message": "Payment failed"}, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -557,14 +603,13 @@ class StripeWebhookView(APIView):
         sig_header = request.headers.get("Stripe-Signature")
         endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
 
-
         try:
             event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
-        except ValueError as e:
+        except ValueError:
             return Response({"error": "Invalid payload"}, status=status.HTTP_400_BAD_REQUEST)
-        except stripe.error.SignatureVerificationError as e:
+        except stripe.error.SignatureVerificationError:
             return Response({"error": "Invalid signature"}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         if event["type"] == "checkout.session.completed":
             session = event["data"]["object"]
             metadata = session.get("metadata", {})
@@ -581,15 +626,46 @@ class StripeWebhookView(APIView):
                     if str(order.id) != order_id:
                         return Response({"error": "Order ID mismatch"}, status=status.HTTP_400_BAD_REQUEST)
 
+                    # **Update Payment & Order Status**
                     payment.payment_status = "Completed"
-                    order.status = "in_process" 
+                    order.status = "in_process"
                     payment.save()
                     order.save()
-                    # Remove only the ordered items from the cart
-                    ordered_products = order.items.values_list("product_id", flat=True)
-                    Cart.objects.filter(user=order.user, product_id__in=ordered_products).delete()
+
+                    # **Remove only ordered items from the cart (Product + Size)**
+                    ordered_items = order.items.values_list("product_id", "size_id")
+                    Cart.objects.filter(
+                        user=order.user, 
+                        product_id__in=[item[0] for item in ordered_items], 
+                        size_id__in=[item[1] for item in ordered_items]
+                    ).delete()
+
+                    # **Send Order Confirmation Email**
+                    self.send_order_confirmation(order)
 
             except Payment.DoesNotExist:
                 return Response({"error": "Payment record not found"}, status=status.HTTP_200_OK)  # Return 200 to prevent retries
 
         return Response({"message": "Webhook processed successfully"}, status=status.HTTP_200_OK)
+
+    def send_order_confirmation(self, order):
+        """Send an email confirmation to the user after successful payment."""
+        subject = f"Order Confirmation - Order #{order.id}"
+        recipient_email = order.user.email
+
+        # Render email template with order details
+        email_content = render_to_string("emails/order_confirmation.html", {
+            "user": order.user,
+            "order": order,
+            "order_items": order.items.all(),
+            "total_price": order.total_price
+        })
+
+        send_mail(
+            subject,
+            email_content,
+            settings.DEFAULT_FROM_EMAIL,
+            [recipient_email],
+            fail_silently=False,
+            html_message=email_content  
+        )
