@@ -122,7 +122,8 @@ class ClothesListView(generics.ListAPIView):
         queryset = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')
         gender = self.request.query_params.get('gender', None)
         if gender:
-            queryset = queryset.filter(gender=gender.upper())
+            filter_condition = Q(gender=gender.upper()) | Q(gender="ALL")
+            queryset = queryset.filter(filter_condition)
         return queryset
 
 class ShoesListView(generics.ListAPIView):
@@ -143,7 +144,8 @@ class ShoesListView(generics.ListAPIView):
         queryset = Product.objects.filter(product_type='SHOES').order_by('-created_at')
         gender = self.request.query_params.get('gender', None)
         if gender:
-            queryset = queryset.filter(gender=gender.upper())
+            filter_condition = Q(gender=gender.upper()) | Q(gender="ALL")
+            queryset = queryset.filter(filter_condition)
         return queryset
 
 
@@ -165,7 +167,8 @@ class AccessoriesListView(generics.ListAPIView):
         queryset = Product.objects.filter(product_type='ACCESSORIES').order_by('-created_at')
         gender = self.request.query_params.get('gender', None)
         if gender:
-            queryset = queryset.filter(gender=gender.upper())
+            filter_condition = Q(gender=gender.upper()) | Q(gender="ALL")
+            queryset = queryset.filter(filter_condition)
         return queryset
 
 
