@@ -102,7 +102,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 class ProductListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
-        fields = ['id', 'name', 'price', 'description', 'image']
+        fields = ['id', 'name', 'price', 'description', 'image' , 'product_type']
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):
