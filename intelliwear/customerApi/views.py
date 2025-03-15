@@ -99,7 +99,7 @@ class CategoryProductsListView(generics.ListAPIView):
 
 
 class CustomPagination(PageNumberPagination):
-    page_size = 32  
+    page_size = 32
     page_size_query_param = 'page_size'  
     max_page_size = 100  
 
@@ -110,7 +110,7 @@ class ClothesListView(generics.ListAPIView):
     pagination_class = CustomPagination
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['gender','size']
+    filterset_fields = ['gender']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
@@ -131,7 +131,7 @@ class ShoesListView(generics.ListAPIView):
     pagination_class = CustomPagination
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['gender','size']
+    filterset_fields = ['gender']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
@@ -153,7 +153,7 @@ class AccessoriesListView(generics.ListAPIView):
     pagination_class = CustomPagination
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['gender','size']
+    filterset_fields = ['gender']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
