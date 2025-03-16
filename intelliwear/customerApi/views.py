@@ -185,6 +185,10 @@ class AddToCartView(APIView):
     permission_classes = [IsCustomerUser]  
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
+    @extend_schema(
+            description="Fetch all items currently in the user's cart.",
+            responses={200: "Cart items retrieved successfully."}
+        )
     def get(self, request):
         cart_items = Cart.objects.filter(user=request.user).select_related("product", "size")
 
@@ -201,6 +205,7 @@ class AddToCartView(APIView):
             total_price += item_total
 
             cart_data.append({
+                "cart_item_id": item.id, 
                 "product_id": product.id,
                 "name": product.name,
                 "image": request.build_absolute_uri(product.image.url) if product.image else None,
@@ -215,6 +220,10 @@ class AddToCartView(APIView):
             status=status.HTTP_200_OK
         )
     
+    @extend_schema(
+        description="Add a product to the cart with the selected size and quantity.",
+        responses={200: "Product added to cart successfully."}
+    )
     def post(self, request):
         product_id = request.data.get('product_id')
         size_id = request.data.get('size_id')  
@@ -238,8 +247,7 @@ class AddToCartView(APIView):
         try:
             with transaction.atomic():  
                 size = Size.objects.select_for_update().get(id=size_id, product=product)  # Lock the size row
-                
-                # Ensure requested quantity does not exceed available stock
+            
                 if quantity > size.quantity:
                     return Response(
                         {"error": f"Only {size.quantity} items available in stock for this size."}, 
@@ -249,9 +257,9 @@ class AddToCartView(APIView):
                 cart_item, created = Cart.objects.get_or_create(user=request.user, product=product, size=size)
 
                 if created:
-                    cart_item.quantity = quantity  # First time, set the requested quantity
+                    cart_item.quantity = quantity  
                 else:
-                    new_quantity = cart_item.quantity + quantity  # Add to existing quantity
+                    new_quantity = cart_item.quantity + quantity  
                     if new_quantity > size.quantity:
                         return Response(
                             {"error": f"Cannot add more than {size.quantity} items of this size to the cart."}, 
@@ -269,9 +277,12 @@ class AddToCartView(APIView):
 class UpdateCartView(APIView):
     permission_classes = [IsCustomerUser]  
 
+    @extend_schema(
+        description="Update the quantity of an existing item in the user's cart.",
+        responses={200: "Cart item updated successfully."}
+    )
     def patch(self, request):
-        product_id = request.data.get("product_id")
-        size_id = request.data.get("size_id")
+        cart_item_id = request.data.get("cart_item_id")  
         new_quantity = request.data.get("quantity")
 
         if new_quantity is None:
@@ -284,9 +295,12 @@ class UpdateCartView(APIView):
         except ValueError:
             return Response({"error": "Invalid quantity format"}, status=status.HTTP_400_BAD_REQUEST)
 
+        if not cart_item_id:
+            return Response({"error": "cart_item_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             with transaction.atomic():
-                cart_item = Cart.objects.select_related("size").get(product__id=product_id, size__id=size_id, user=request.user)
+                cart_item = Cart.objects.select_related("size").get(id=cart_item_id, user=request.user)
                 size = cart_item.size
 
                 if new_quantity > size.quantity:
@@ -301,15 +315,23 @@ class UpdateCartView(APIView):
 
 class RemoveFromCartView(APIView):
     permission_classes = [IsCustomerUser]  
-
+    @extend_schema(
+        description="Deletes a specific product of a selected size from the user's cart.",
+        responses={
+            200: {"message": "Product size removed from cart"},
+            404: {"error": "Cart item not found"}
+        }
+    )
     def delete(self, request):
-        product_id = request.data.get("product_id")
-        size_id = request.data.get("size_id")  
+        cart_item_id = request.data.get("cart_item_id")  
+
+        if not cart_item_id:
+            return Response({"error": "cart_item_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            cart_item = Cart.objects.get(product__id=product_id, size__id=size_id, user=request.user)
+            cart_item = Cart.objects.get(id=cart_item_id, user=request.user)
             cart_item.delete()
-            return Response({"message": "Product size removed from cart"}, status=status.HTTP_200_OK)
+            return Response({"message": "Cart item removed successfully"}, status=status.HTTP_200_OK)
 
         except Cart.DoesNotExist:
             return Response({"error": "Cart item not found"}, status=status.HTTP_404_NOT_FOUND)
