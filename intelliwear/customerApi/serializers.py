@@ -174,6 +174,11 @@ class ReviewSerializer(serializers.ModelSerializer):
         model = Review
         fields = ['id', 'product', 'user', 'rating', 'comment', 'created_at']
 
+class AddToCartSerializer(serializers.Serializer):
+    product_id = serializers.IntegerField(required=True, help_text="ID of the product to add to the cart")
+    size_id = serializers.IntegerField(required=True, help_text="ID of the size variant for the product")
+    quantity = serializers.IntegerField(default=1, min_value=1, help_text="Quantity of the product to add (default: 1)")
+
 
 
 '''
