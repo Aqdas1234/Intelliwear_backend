@@ -340,9 +340,15 @@ class RemoveFromCartView(APIView):
 
 class GoToCheckoutView(APIView):
     permission_classes = [IsAuthenticated]
-
+    @extend_schema(
+        description="Fetch selected cart items for checkout.",
+        responses={
+            200: {"example": {"cart_items": [...], "total_price": "40.00"}},
+            400: {"example": {"error": "No items selected for checkout."}}
+        }
+    )
     def get(self, request):
-        selected_ids = request.query_params.getlist("selected_ids")  
+        selected_ids = request.query_params.getlist("selected_ids") 
 
         if not selected_ids:
             return Response({"error": "No items selected for checkout."}, status=status.HTTP_400_BAD_REQUEST)
@@ -371,6 +377,7 @@ class GoToCheckoutView(APIView):
                     total_price += item_total
 
                     cart_data.append({
+                        "cart_item_id": item.id, 
                         "product_id": product.id,
                         "name": product.name,
                         "image": request.build_absolute_uri(product.image.url),
@@ -590,7 +597,14 @@ class CreateReviewView(APIView):
 stripe.api_key = settings.STRIPE_SECRET_KEY
 class PlaceOrderViewStripe(APIView):
     permission_classes = [IsCustomerUser]
-
+    @extend_schema(
+        description="Place an order using Stripe or Cash on Delivery.",
+        responses={
+            201: {"example": {"message": "Order placed successfully", "order_id": 123}},
+            400: {"example": {"error": "Invalid payment method"}},
+            500: {"example": {"error": "Order placement failed: Some error message"}}
+        }
+    )
     def post(self, request):
         checkout_data = request.data.get("cart_items", [])  
         total_price = Decimal(request.data.get("total_price", "0.00"))
