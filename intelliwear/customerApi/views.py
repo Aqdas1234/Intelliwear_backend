@@ -181,8 +181,6 @@ class ProductDetailView(generics.RetrieveAPIView):
 
 #Cart 
 
-from django.db import transaction
-
 class AddToCartView(APIView):
     permission_classes = [IsCustomerUser]  
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
@@ -235,6 +233,51 @@ class AddToCartView(APIView):
 
         return Response({"message": "Product added to cart"}, status=status.HTTP_200_OK)
 
+class UpdateCartView(APIView):
+    permission_classes = [IsCustomerUser]  
+
+    def patch(self, request):
+        cart_item_id = request.data.get("cart_item_id")
+        new_quantity = request.data.get("quantity")
+
+        if new_quantity is None:
+            return Response({"error": "New quantity is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            new_quantity = int(new_quantity)
+            if new_quantity <= 0:
+                return Response({"error": "Quantity must be greater than 0"}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            return Response({"error": "Invalid quantity format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                cart_item = Cart.objects.select_related("size").get(id=cart_item_id, user=request.user)
+                size = cart_item.size
+
+                if new_quantity > size.quantity:
+                    return Response({"error": f"Only {size.quantity} items available in stock."}, status=status.HTTP_400_BAD_REQUEST)
+
+                cart_item.quantity = new_quantity
+                cart_item.save()
+                return Response({"message": "Cart item updated successfully"}, status=status.HTTP_200_OK)
+
+        except Cart.DoesNotExist:
+            return Response({"error": "Cart item not found"}, status=status.HTTP_404_NOT_FOUND)
+
+class RemoveFromCartView(APIView):
+    permission_classes = [IsCustomerUser]  
+
+    def delete(self, request):
+        cart_item_id = request.data.get("cart_item_id")
+
+        try:
+            cart_item = Cart.objects.get(id=cart_item_id, user=request.user)
+            cart_item.delete()
+            return Response({"message": "Product removed from cart"}, status=status.HTTP_200_OK)
+
+        except Cart.DoesNotExist:
+            return Response({"error": "Cart item not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 class GoToCheckoutView(APIView):

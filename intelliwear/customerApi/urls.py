@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import AccessoriesListView, ClothesListView, CreateReviewView, CustomerProfileView,CategoryProductsListView, HomePageProductsView, PlaceOrderViewStripe,ProductDetailView,AddToCartView,OrderListView,GoToCheckoutView, ShoesListView, StripeWebhookView, paymentFailView
+from .views import AccessoriesListView, ClothesListView, CreateReviewView, CustomerProfileView,CategoryProductsListView, HomePageProductsView, PlaceOrderViewStripe,ProductDetailView,AddToCartView,OrderListView,GoToCheckoutView, RemoveFromCartView, ShoesListView, StripeWebhookView, UpdateCartView, paymentFailView
 
 urlpatterns = [
     #path('register/', CustomerRegisterView.as_view(), name='customer-register'),
@@ -11,6 +11,8 @@ urlpatterns = [
     path('shoes/', ShoesListView.as_view(), name='shoes-list'),
     path('accessories/', AccessoriesListView.as_view(), name='accessories-list'),
     path('cart/', AddToCartView.as_view(), name='add-to-cart'),
+    path('update-cart/', UpdateCartView.as_view(), name='update-cart'),
+    path('remove-cart/', RemoveFromCartView.as_view(), name='remove-from-cart'),
     path('gocheckout/', GoToCheckoutView.as_view(), name='go-to-checkout'),
     #path("place-order/", PlaceOrderView.as_view(), name="place-order"),
     #path("webhook/", CheckoutWebhookView.as_view(), name="2checkout-webhook"),
