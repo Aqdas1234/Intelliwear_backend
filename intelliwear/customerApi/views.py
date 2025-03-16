@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from rest_framework import status,generics, pagination,filters
 from rest_framework.permissions import IsAuthenticated,BasePermission,AllowAny
 from .models import Cart,OrderItem,Review,Order,Payment,ShippingAddress
-from .serializers import ProductListSerializer,ProductDetailSerializer,OrderSerializer,ReviewSerializer, UserSerializer
+from .serializers import ProductListSerializer,ProductDetailSerializer,OrderSerializer,ReviewSerializer, UserSerializer, AddToCartSerializer
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from django_filters.rest_framework import DjangoFilterBackend
@@ -272,7 +272,7 @@ class AddToCartView(APIView):
         except Size.DoesNotExist:
             return Response({"error": "Invalid size selection."}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"message": "Product added to cart"}, status=status.HTTP_200_OK)
+        return Response({"message": "Product added to cart" , "cart_item_id": cart_item.id }, status=status.HTTP_200_OK)
 
 class UpdateCartView(APIView):
     permission_classes = [IsCustomerUser]  
