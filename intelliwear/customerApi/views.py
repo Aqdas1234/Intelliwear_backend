@@ -185,6 +185,36 @@ class AddToCartView(APIView):
     permission_classes = [IsCustomerUser]  
     renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
 
+    def get(self, request):
+        cart_items = Cart.objects.filter(user=request.user).select_related("product", "size")
+
+        if not cart_items.exists():
+            return Response({"message": "Your cart is empty."}, status=status.HTTP_200_OK)
+
+        cart_data = []
+        total_price = Decimal("0.00")
+
+        for item in cart_items:
+            product = item.product
+            size = item.size
+            item_total = Decimal(str(product.price)) * item.quantity
+            total_price += item_total
+
+            cart_data.append({
+                "product_id": product.id,
+                "name": product.name,
+                "image": request.build_absolute_uri(product.image.url) if product.image else None,
+                "price": str(product.price),
+                "size": size.size,
+                "quantity": item.quantity,
+                "item_total": str(item_total),
+            })
+
+        return Response(
+            {"cart_items": cart_data, "total_price": str(total_price)},
+            status=status.HTTP_200_OK
+        )
+    
     def post(self, request):
         product_id = request.data.get('product_id')
         size_id = request.data.get('size_id')  
@@ -218,15 +248,18 @@ class AddToCartView(APIView):
 
                 cart_item, created = Cart.objects.get_or_create(user=request.user, product=product, size=size)
 
-                if not created:
-                    new_quantity = cart_item.quantity + quantity
+                if created:
+                    cart_item.quantity = quantity  # First time, set the requested quantity
+                else:
+                    new_quantity = cart_item.quantity + quantity  # Add to existing quantity
                     if new_quantity > size.quantity:
                         return Response(
                             {"error": f"Cannot add more than {size.quantity} items of this size to the cart."}, 
                             status=status.HTTP_400_BAD_REQUEST
                         )
                     cart_item.quantity = new_quantity
-                    cart_item.save()
+                
+                cart_item.save()
 
         except Size.DoesNotExist:
             return Response({"error": "Invalid size selection."}, status=status.HTTP_400_BAD_REQUEST)
@@ -237,7 +270,8 @@ class UpdateCartView(APIView):
     permission_classes = [IsCustomerUser]  
 
     def patch(self, request):
-        cart_item_id = request.data.get("cart_item_id")
+        product_id = request.data.get("product_id")
+        size_id = request.data.get("size_id")
         new_quantity = request.data.get("quantity")
 
         if new_quantity is None:
@@ -252,7 +286,7 @@ class UpdateCartView(APIView):
 
         try:
             with transaction.atomic():
-                cart_item = Cart.objects.select_related("size").get(id=cart_item_id, user=request.user)
+                cart_item = Cart.objects.select_related("size").get(product__id=product_id, size__id=size_id, user=request.user)
                 size = cart_item.size
 
                 if new_quantity > size.quantity:
@@ -269,15 +303,17 @@ class RemoveFromCartView(APIView):
     permission_classes = [IsCustomerUser]  
 
     def delete(self, request):
-        cart_item_id = request.data.get("cart_item_id")
+        product_id = request.data.get("product_id")
+        size_id = request.data.get("size_id")  
 
         try:
-            cart_item = Cart.objects.get(id=cart_item_id, user=request.user)
+            cart_item = Cart.objects.get(product__id=product_id, size__id=size_id, user=request.user)
             cart_item.delete()
-            return Response({"message": "Product removed from cart"}, status=status.HTTP_200_OK)
+            return Response({"message": "Product size removed from cart"}, status=status.HTTP_200_OK)
 
         except Cart.DoesNotExist:
             return Response({"error": "Cart item not found"}, status=status.HTTP_404_NOT_FOUND)
+
 
 
 class GoToCheckoutView(APIView):
