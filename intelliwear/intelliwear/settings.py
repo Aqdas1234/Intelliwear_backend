@@ -38,7 +38,7 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = env.bool("DEBUG", default=False)
 
 # ALLOWED_HOSTS = []
-ALLOWED_HOSTS = ["127.0.0.1", "localhost",'27b7-154-208-40-187.ngrok-free.app']
+ALLOWED_HOSTS = ["127.0.0.1", "localhost",'2dfb-154-208-40-187.ngrok-free.app']
 
 AUTH_USER_MODEL = 'customerApi.User' 
 
@@ -80,7 +80,7 @@ ROOT_URLCONF = 'intelliwear.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')], 
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
