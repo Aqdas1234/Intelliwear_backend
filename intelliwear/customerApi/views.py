@@ -339,7 +339,7 @@ class RemoveFromCartView(APIView):
 
 
 class GoToCheckoutView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsCustomerUser]
     @extend_schema(
         description="Fetch selected cart items for checkout.",
         responses={
@@ -347,8 +347,8 @@ class GoToCheckoutView(APIView):
             400: {"example": {"error": "No items selected for checkout."}}
         }
     )
-    def get(self, request):
-        selected_ids = request.query_params.getlist("selected_ids") 
+    def post(self, request):
+        selected_ids = request.data.get("selected_ids", [])  
 
         if not selected_ids:
             return Response({"error": "No items selected for checkout."}, status=status.HTTP_400_BAD_REQUEST)
