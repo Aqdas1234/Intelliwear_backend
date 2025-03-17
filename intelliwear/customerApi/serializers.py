@@ -143,7 +143,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class ShippingAddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = ShippingAddress
-        fields = ['name', 'address', 'phone']
+        fields = ['name', 'city', 'address', 'phone']
 
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
