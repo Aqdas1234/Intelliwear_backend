@@ -644,7 +644,7 @@ class PlaceOrderViewStripe(APIView):
                     user=request.user,
                     order=order,
                     name=request.data.get("name", request.user.name),
-                    city=request.data.get("city", ""),
+                    #city=request.data.get("city", ""),
                     address=request.data.get("address", ""),
                     phone=request.data.get("phone", "")
                 )
