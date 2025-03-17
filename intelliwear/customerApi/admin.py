@@ -52,9 +52,9 @@ class ReviewAdmin(admin.ModelAdmin):
 # Shipping Address
 @admin.register(ShippingAddress)
 class ShippingAddressAdmin(admin.ModelAdmin):
-    list_display = ('user', 'order', 'name', 'city', 'phone')
-    search_fields = ('user__email', 'name', 'city', 'phone')
-    list_filter = ('city',)
+    list_display = ('user', 'order', 'name','address', 'phone')
+    search_fields = ('user__email', 'name','address', 'phone')
+    list_filter = ('name',)
 
 # Payment
 @admin.register(Payment)
