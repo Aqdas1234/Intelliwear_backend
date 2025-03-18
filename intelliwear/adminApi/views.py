@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.conf import settings
 #from django.contrib.auth.models import User
 from rest_framework import viewsets, status , filters
 from customerApi.serializers import UserSerializer
@@ -13,6 +14,11 @@ from .paginations import MyLimitOffsetPagination
 from django.contrib.auth import get_user_model
 from rest_framework.parsers import MultiPartParser, FormParser
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
+from customerApi.serializers import OrderSerializer
+from customerApi.models import Order
+from django.template.loader import render_to_string
+from django.core.mail import send_mail
+
 #from .models import Product,Size,Color,Media
 User = get_user_model() 
 from drf_yasg.utils import swagger_auto_schema
@@ -179,3 +185,84 @@ class CarouselViewSet(viewsets.ModelViewSet):
         if self.action == "list": 
             return [AllowAny()]
         return [IsSuperUser()]  
+    
+
+@extend_schema(tags=["Admin - OrdersListView"])
+class AdminOrderListView(APIView):
+    permission_classes = [IsSuperUser]
+    pagination_class = MyLimitOffsetPagination 
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name="limit", description="Number of results per page", required=False, type=int),
+            OpenApiParameter(name="offset", description="Pagination offset", required=False, type=int),
+            OpenApiParameter(name="status", description="Filter orders by status", required=False, type=str),
+        ],
+        responses={200: OrderSerializer(many=True)}
+    )
+    def get(self, request):
+        status_filter = request.query_params.get("status")
+
+        orders = Order.objects.all().order_by("-created_at")
+
+        if status_filter:  
+            orders = orders.filter(status=status_filter) 
+
+        paginator = self.pagination_class()  
+        paginated_orders = paginator.paginate_queryset(orders, request)
+        serializer = OrderSerializer(paginated_orders, many=True)
+        return paginator.get_paginated_response(serializer.data)    
+    
+@extend_schema(tags=["Admin - UpdateOrderStatusView"])
+class AdminUpdateOrderStatusView(APIView):
+    permission_classes = [IsSuperUser]
+
+    def post(self , request , order_id):
+        order = get_object_or_404(Order , id=order_id)
+        new_status = request.data.get("status")
+
+        valid_statuses = ["pending", "in_process", "shipped", "delivered"]
+        if new_status not in valid_statuses:
+            return Response({"error": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
+
+        order.status = new_status
+        order.save()
+
+        if new_status in ["pending", "in_process"]:
+            return Response({"message": f"Order status updated to {new_status} successfully."}, status=status.HTTP_200_OK)
+
+        user_email = order.user.email
+        email_subject = f"Your Order #{order.id} is now {new_status.capitalize()}"    
+
+        if new_status == "shipped":
+            template_name = "emails/order_shipped.html"
+            email_context = {
+                "user": order.user,
+                "order": order,
+                "shipping_carrier": "TCS",  
+                "tracking_number": "12345",
+                "order_items": order.items.all(),
+                "total_price": order.total_price
+            }
+
+        elif new_status == "delivered":
+            template_name = "emails/order_delivered.html"
+            email_context = {
+                "user": order.user,
+                "order": order,
+                "order_items": order.items.all(),
+                "total_price": order.total_price
+            }    
+
+        email_body = render_to_string(template_name , email_context)    
+
+        send_mail(
+            email_subject,
+            "",
+            settings.DEFAULT_FROM_EMAIL,
+            [user_email],
+            fail_silently=False,
+            html_message=email_body
+        )
+
+        return Response({"message": f"Order status updated to {new_status} and email sent."}, status=status.HTTP_200_OK)

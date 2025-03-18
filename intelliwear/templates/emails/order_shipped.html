@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Order Shipped</title>
+</head>
+<body>
+    <h2>Dear {{ user.name }},</h2>
+    <p>Your order <strong>#{{ order.id }}</strong> has been shipped!</p>
+
+    <h3>Shipping Details:</h3>
+    <p><strong>Carrier:</strong> {{ shipping_carrier }}</p>
+    <p><strong>Tracking Number:</strong> {{ tracking_number }}</p>
+
+    <h3>Order Details:</h3>
+    <ul>
+        {% for item in order_items %}
+            <li>{{ item.product.name }} (Size: {{ item.size.size }}) - Quantity: {{ item.quantity }} - Price: ${{ item.price }}</li>
+        {% endfor %}
+    </ul>
+
+    <p><strong>Total Price:</strong> ${{ total_price }}</p>
+    <p>Your order is on the way and should arrive soon!</p>
+
+    <p>Thank you for shopping with us!</p>
+    <p>Best Regards,<br>IntelliWear Team</p>
+</body>
+</html>

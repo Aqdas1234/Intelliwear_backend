@@ -341,13 +341,13 @@ class RemoveFromCartView(APIView):
 
 class GoToCheckoutView(APIView):
     permission_classes = [IsCustomerUser]
-    @extend_schema(
-        description="Fetch selected cart items for checkout.",
-        responses={
-            200: {"example": {"cart_items": [...], "total_price": "40.00"}},
-            400: {"example": {"error": "No items selected for checkout."}}
-        }
-    )
+    # @extend_schema(
+    #     description="Fetch selected cart items for checkout.",
+    #     responses={
+    #         200: {"example": {"cart_items": [...], "total_price": "40.00"}},
+    #         400: {"example": {"error": "No items selected for checkout."}}
+    #     }
+    # )
     def post(self, request):
         selected_ids = request.data.get("selected_ids", [])  
 

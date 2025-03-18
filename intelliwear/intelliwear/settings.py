@@ -38,7 +38,7 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = env.bool("DEBUG", default=False)
 
 # ALLOWED_HOSTS = []
-ALLOWED_HOSTS = ["127.0.0.1", "localhost","9e9d-154-208-40-187.ngrok-free.app"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost","fbb2-14-1-105-129.ngrok-free.app"]
 
 AUTH_USER_MODEL = 'customerApi.User' 
 
@@ -263,4 +263,5 @@ SWAGGER_SETTINGS = {
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    "https://*.ngrok-free.app"
 ]
