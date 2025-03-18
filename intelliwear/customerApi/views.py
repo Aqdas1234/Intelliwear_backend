@@ -1,4 +1,5 @@
 from itertools import chain
+import json
 import stripe
 from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
@@ -16,8 +17,8 @@ from adminApi.models import Product, Size
 from rest_framework.response import Response
 from rest_framework import status,generics, pagination,filters
 from rest_framework.permissions import IsAuthenticated,BasePermission,AllowAny
-from .models import Cart,OrderItem,Review,Order,Payment,ShippingAddress
-from .serializers import ProductListSerializer,ProductDetailSerializer,OrderSerializer,ReviewSerializer, UserSerializer, AddToCartSerializer
+from .models import Cart,OrderItem,Review,Order,Payment,ShippingAddress, User
+from .serializers import OrderListSerializer, ProductListSerializer,ProductDetailSerializer,ReviewSerializer, UserSerializer
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from django_filters.rest_framework import DjangoFilterBackend
@@ -544,7 +545,7 @@ class OrderListView(APIView):
     permission_classes = [IsCustomerUser]
     def get(self, request):
         orders = Order.objects.filter(user=request.user).order_by('-created_at')
-        serializer = OrderSerializer(orders, many=True)
+        serializer = OrderListSerializer(orders, many=True)
         return Response(serializer.data)
     
 
@@ -597,14 +598,7 @@ class CreateReviewView(APIView):
 stripe.api_key = settings.STRIPE_SECRET_KEY
 class PlaceOrderViewStripe(APIView):
     permission_classes = [IsCustomerUser]
-    @extend_schema(
-        description="Place an order using Stripe or Cash on Delivery.",
-        responses={
-            201: {"example": {"message": "Order placed successfully", "order_id": 123}},
-            400: {"example": {"error": "Invalid payment method"}},
-            500: {"example": {"error": "Order placement failed: Some error message"}}
-        }
-    )
+
     def post(self, request):
         checkout_data = request.data.get("cart_items", [])  
         total_price = Decimal(request.data.get("total_price", "0.00"))
@@ -612,89 +606,101 @@ class PlaceOrderViewStripe(APIView):
         if not checkout_data:
             return Response({"error": "No checkout data provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-        order_items = []
-
         try:
-            with transaction.atomic():
-                order = Order.objects.create(user=request.user, total_price=total_price, status="pending")
-
-                for item in checkout_data:
-                    product = Product.objects.get(id=item["product_id"])
-                    size = Size.objects.get(size=item["size"], product=product)  
-                    if size.quantity < item["quantity"]:
-                        return Response(
-                            {"error": f"Only {size.quantity} items available in stock for '{product.name}' (Size: {size.size})."},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
-
-                    order_items.append(OrderItem(
-                        order=order,
-                        product=product,
-                        size=size,
-                        quantity=item["quantity"],
-                        price=Decimal(item["price"])
-                    ))
-
-                    size.quantity -= item["quantity"]
-                    size.save()
-
-                OrderItem.objects.bulk_create(order_items)
-
-                ShippingAddress.objects.create(
-                    user=request.user,
-                    order=order,
-                    name=request.data.get("name", request.user.name),
-                    #city=request.data.get("city", ""),
-                    address=request.data.get("address", ""),
-                    phone=request.data.get("phone", "")
-                )
-
-                transaction_id = str(uuid.uuid4())
-
-                if request.data.get("payment_method") == "cod":
-                    Payment.objects.create(
-                        user=request.user,
-                        order=order,
-                        payment_method="cod",
-                        transaction_id=transaction_id,
-                        payment_status="Completed"
-                    )
-                    order.status = "in_process"
-                    order.save()
+            if request.data.get("payment_method") == "cod":
+                with transaction.atomic():
+                    # Pass request.data (a dict) as shipping_info
+                    order = self.create_order(request.user, checkout_data, total_price, "cod", "Completed", request.data)
                     return Response({"message": "Order placed successfully", "order_id": order.id}, status=status.HTTP_201_CREATED)
 
-                elif request.data.get("payment_method") == "stripe":
-                    checkout_session = stripe.checkout.Session.create(
-                        payment_method_types=["card"],
-                        line_items=[{
-                            "price_data": {
-                                "currency": "usd",
-                                "product_data": {"name": f"Order #{order.id}"},
-                                "unit_amount": int(total_price * 100), 
-                            },
-                            "quantity": 1,
-                        }],
-                        mode="payment",
-                        success_url=f"{settings.FRONTEND_URL}/customer/payment-success/",
-                        cancel_url=f"{settings.FRONTEND_URL}/customer/payment-failed/",
-                        metadata={"order_id": str(order.id)}
-                    )
+            elif request.data.get("payment_method") == "stripe":
+                checkout_session = stripe.checkout.Session.create(
+                    payment_method_types=["card"],
+                    line_items=[{
+                        "price_data": {
+                            "currency": "usd",
+                            "product_data": {"name": f"Order for {request.user.username}"},
+                            "unit_amount": int(total_price * 100),
+                        },
+                        "quantity": 1,
+                    }],
+                    mode="payment",
+                    success_url=f"{settings.FRONTEND_URL}/myorders/",
+                    cancel_url=f"{settings.FRONTEND_URL}/checkout/",
+                    metadata={
+                        "user_id": str(request.user.id), 
+                        "cart_data": json.dumps(checkout_data), 
+                        "shipping_data": json.dumps(request.data)
+                    }
+                )
 
-                    Payment.objects.create(
-                        user=request.user,
-                        order=order,
-                        payment_method="stripe",
-                        transaction_id=checkout_session.id,
-                        payment_status="Pending"
-                    )
+                return Response(
+                    {"message": "Redirect to Stripe for payment", "payment_url": checkout_session.url},
+                    status=status.HTTP_201_CREATED
+                )
 
-                    return Response({"message": "Redirect to Stripe for payment", "payment_url": checkout_session.url}, status=status.HTTP_201_CREATED)
-
-                else:
-                    return Response({"error": "Invalid payment method"}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"error": "Invalid payment method"}, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
-            return Response({"error": f"Order placement failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": f"Order placement failed: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def create_order(self, user, checkout_data, total_price, payment_method, payment_status, shipping_info, transaction_id=None):
+        order = Order.objects.create(
+            user=user, 
+            total_price=total_price, 
+            status="in_process" if payment_status == "Completed" else "pending"
+        )
+        order_items = []
+
+        for item in checkout_data:
+            product = Product.objects.get(id=item["product_id"])
+            size = Size.objects.get(size=item["size"], product=product)
+
+            if size.quantity < item["quantity"]:
+                raise ValueError(f"Only {size.quantity} items available in stock for '{product.name}' (Size: {size.size}).")
+
+            order_items.append(
+                OrderItem(
+                    order=order, 
+                    product=product, 
+                    size=size, 
+                    quantity=item["quantity"], 
+                    price=Decimal(item["price"])
+                )
+            )
+            size.quantity -= item["quantity"]
+            size.save()
+
+        OrderItem.objects.bulk_create(order_items)
+
+        # Use the shipping_info dictionary directly
+        ShippingAddress.objects.create(
+            user=user,
+            order=order,
+            name=shipping_info.get("name", user.name),
+            city=shipping_info.get("city", ""),
+            address=shipping_info.get("address", ""),
+            phone=shipping_info.get("phone", "")
+        )
+
+        Payment.objects.create(
+            user=user, 
+            order=order,
+            payment_method=payment_method, 
+            transaction_id=transaction_id or str(uuid.uuid4()),
+            payment_status=payment_status
+        )
+
+        ordered_items = order.items.values_list("product_id", "size_id")
+        Cart.objects.filter(
+            user=user, 
+            product_id__in=[item[0] for item in ordered_items], 
+            size_id__in=[item[1] for item in ordered_items]
+        ).delete()
+
+        return order
 
 
 class paymentFailView(APIView):
@@ -708,7 +714,7 @@ class paymentFailView(APIView):
 class StripeWebhookView(APIView):
 
     def post(self, request):
-        payload = request.body  # Raw bytes for signature verification
+        payload = request.body
         sig_header = request.headers.get("Stripe-Signature")
         endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
 
@@ -723,45 +729,37 @@ class StripeWebhookView(APIView):
             session = event["data"]["object"]
             metadata = session.get("metadata", {})
 
-            order_id = metadata.get("order_id")
-            if not order_id:
-                return Response({"error": "Invalid order_id in metadata"}, status=status.HTTP_400_BAD_REQUEST)
+            user_id = metadata.get("user_id")
+            cart_data = json.loads(metadata.get("cart_data", "[]"))
+            shipping_data = json.loads(metadata.get("shipping_data", "{}"))
+
+            if not user_id or not cart_data:
+                return Response({"error": "Invalid metadata"}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
+                user = User.objects.get(id=user_id)
                 with transaction.atomic():
-                    payment = Payment.objects.select_related("order").get(transaction_id=session["id"])
-                    order = payment.order  # Get related order
-
-                    if str(order.id) != order_id:
-                        return Response({"error": "Order ID mismatch"}, status=status.HTTP_400_BAD_REQUEST)
-
-                    # **Update Payment & Order Status**
-                    payment.payment_status = "Completed"
-                    order.status = "in_process"
-                    payment.save()
-                    order.save()
-
-                    # **Remove only ordered items from the cart (Product + Size)**
-                    ordered_items = order.items.values_list("product_id", "size_id")
-                    Cart.objects.filter(
-                        user=order.user, 
-                        product_id__in=[item[0] for item in ordered_items], 
-                        size_id__in=[item[1] for item in ordered_items]
-                    ).delete()
-
-                    # **Send Order Confirmation Email**
+                    order = PlaceOrderViewStripe().create_order(
+                        user, 
+                        cart_data, 
+                        Decimal(session["amount_total"]) / 100, 
+                        "stripe", 
+                        "Completed", 
+                        shipping_data, 
+                        session["id"]
+                    )
                     self.send_order_confirmation(order)
-
-            except Payment.DoesNotExist:
-                return Response({"error": "Payment record not found"}, status=status.HTTP_200_OK)  # Return 200 to prevent retries
+            except User.DoesNotExist:
+                return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({"error": f"Error processing order: {str(e)}"},
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({"message": "Webhook processed successfully"}, status=status.HTTP_200_OK)
-
+    
     def send_order_confirmation(self, order):
         subject = f"Order Confirmation - Order #{order.id}"
         recipient_email = order.user.email
-
-        # Render email template with order details
         email_content = render_to_string("emails/order_confirmation.html", {
             "user": order.user,
             "order": order,
@@ -814,3 +812,4 @@ class CancelOrderViewStripe(APIView):
 
         except Order.DoesNotExist:
             return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
+

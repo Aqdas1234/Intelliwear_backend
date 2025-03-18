@@ -32,7 +32,7 @@ class MediaAdmin(admin.ModelAdmin):
 
 @admin.register(Size)
 class SizeAdmin(admin.ModelAdmin):
-    list_display = ('id','size', 'product') 
+    list_display = ('id','size', 'product','quantity') 
     search_fields = ('size', 'product__name')
     list_filter = ('size', 'product')
     
