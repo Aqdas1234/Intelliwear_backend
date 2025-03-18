@@ -784,14 +784,12 @@ class CancelOrderViewStripe(APIView):
 
     def post(self, request, order_id):
         try:
-            # Get the order
             order = Order.objects.get(id=order_id, user=request.user)
-
             # Order cancellation restrictions
             if order.status == "shipped":
                 return Response({"error": "Order has already been shipped and cannot be cancelled."}, status=status.HTTP_400_BAD_REQUEST)
 
-            if order.status != "in_process":
+            if order.status not in ["in_process", "pending"]:
                 return Response({"error": "Order is not in a cancellable state."}, status=status.HTTP_400_BAD_REQUEST)
 
             payment = Payment.objects.filter(order=order).first()
@@ -802,8 +800,9 @@ class CancelOrderViewStripe(APIView):
                 if payment.transaction_id:
                     try:
                         refund = stripe.Refund.create(payment_intent=payment.transaction_id)
-                        payment.payment_status = "Refunded"
-                        payment.save()
+                        if refund["status"] == "succeeded": 
+                            payment.payment_status = "Refunded"
+                            payment.save()
                     except stripe.error.StripeError as e:
                         return Response({"error": f"Stripe refund error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
