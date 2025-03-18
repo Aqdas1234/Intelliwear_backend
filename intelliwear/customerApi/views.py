@@ -746,7 +746,7 @@ class StripeWebhookView(APIView):
                         "stripe", 
                         "Completed", 
                         shipping_data, 
-                        session["id"]
+                        session["payment_intent"]
                     )
                     self.send_order_confirmation(order)
             except User.DoesNotExist:
@@ -780,7 +780,8 @@ class StripeWebhookView(APIView):
 class CancelOrderViewStripe(APIView):
     permission_classes = [IsCustomerUser]
 
-    def post(self, request, order_id):
+    def post(self, request):
+        order_id = request.data.get("order_id") 
         try:
             order = Order.objects.get(id=order_id, user=request.user)
             # Order cancellation restrictions
@@ -805,6 +806,9 @@ class CancelOrderViewStripe(APIView):
                         return Response({"error": f"Stripe refund error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
             with transaction.atomic():
+                for item in order.items.all():
+                    item.size.quantity += item.quantity
+                    item.size.save()
                 order.status = "cancelled"
                 order.save()
 
