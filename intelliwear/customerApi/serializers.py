@@ -129,10 +129,10 @@ class CartSerializer(serializers.ModelSerializer):
 #place order
 class OrderItemSerializer(serializers.ModelSerializer):
     size = serializers.PrimaryKeyRelatedField(queryset=Size.objects.all())  # Required input field
-
+    product_name = serializers.CharField(source='product.name', read_only=True)
     class Meta:
         model = OrderItem
-        fields = ['product', 'size', 'quantity', 'price']
+        fields = ['product','product_name', 'size', 'quantity', 'price']
 
     def validate_size(self, value):
         if value is None:
@@ -150,6 +150,12 @@ class PaymentSerializer(serializers.ModelSerializer):
         model = Payment
         fields = ['payment_method', 'transaction_id', 'payment_status']
 
+
+class OrderListSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True, read_only=True)
+    class Meta:
+        model = Order
+        fields = ['id','user','total_price','status','items','created_at']
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)

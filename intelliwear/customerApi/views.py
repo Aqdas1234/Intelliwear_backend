@@ -18,7 +18,7 @@ from rest_framework.response import Response
 from rest_framework import status,generics, pagination,filters
 from rest_framework.permissions import IsAuthenticated,BasePermission,AllowAny
 from .models import Cart,OrderItem,Review,Order,Payment,ShippingAddress, User
-from .serializers import ProductListSerializer,ProductDetailSerializer,OrderSerializer,ReviewSerializer, UserSerializer, AddToCartSerializer
+from .serializers import OrderListSerializer, ProductListSerializer,ProductDetailSerializer,ReviewSerializer, UserSerializer
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from django_filters.rest_framework import DjangoFilterBackend
@@ -545,7 +545,7 @@ class OrderListView(APIView):
     permission_classes = [IsCustomerUser]
     def get(self, request):
         orders = Order.objects.filter(user=request.user).order_by('-created_at')
-        serializer = OrderSerializer(orders, many=True)
+        serializer = OrderListSerializer(orders, many=True)
         return Response(serializer.data)
     
 
@@ -626,7 +626,7 @@ class PlaceOrderViewStripe(APIView):
                     }],
                     mode="payment",
                     success_url=f"{settings.FRONTEND_URL}/myorders/",
-                    cancel_url=f"{settings.FRONTEND_URL}/customer/payment-failed/",
+                    cancel_url=f"{settings.FRONTEND_URL}/checkout/",
                     metadata={
                         "user_id": str(request.user.id), 
                         "cart_data": json.dumps(checkout_data), 
