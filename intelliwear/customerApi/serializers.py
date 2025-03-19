@@ -19,10 +19,12 @@ class UserSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(validators=[UniqueValidator(queryset=User.objects.all())])  
     password = serializers.CharField(write_only=True)  
     confirm_password = serializers.CharField(write_only=True)  
+    total_delivered_orders = serializers.IntegerField(read_only=True)
+    total_delivered_price = serializers.FloatField(read_only=True)
 
     class Meta:
         model = User
-        fields = ['email', 'name', 'password','confirm_password','phone','address','profile_picture', 'user_type']  
+        fields = ['email', 'name', 'password','confirm_password','phone','address','profile_picture', 'user_type' , "total_delivered_orders", "total_delivered_price"]  
 
     def validate(self, data):
         if data.get('password') != data.get('confirm_password'):
