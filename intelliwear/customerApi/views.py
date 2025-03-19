@@ -17,8 +17,8 @@ from adminApi.models import Product, Size
 from rest_framework.response import Response
 from rest_framework import status,generics, pagination,filters
 from rest_framework.permissions import IsAuthenticated,BasePermission,AllowAny
-from .models import Cart,OrderItem,Review,Order,Payment,ShippingAddress, User
-from .serializers import OrderListSerializer, ProductListSerializer,ProductDetailSerializer,ReviewSerializer, UserSerializer
+from .models import Cart,OrderItem, ReturnRequest,Review,Order,Payment,ShippingAddress, User
+from .serializers import OrderListSerializer, ProductListSerializer,ProductDetailSerializer, ReturnRequestSerializer,ReviewSerializer, UserSerializer
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from django_filters.rest_framework import DjangoFilterBackend
@@ -817,3 +817,31 @@ class CancelOrderViewStripe(APIView):
         except Order.DoesNotExist:
             return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
 
+
+
+
+
+class CustomerReturnRequestView(generics.ListCreateAPIView):
+    serializer_class = ReturnRequestSerializer
+    permission_classes = [IsCustomerUser]
+
+    def get_queryset(self):
+        return ReturnRequest.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        """Allow customers to create a return request"""
+        order_item = get_object_or_404(OrderItem, id=self.request.data.get("order_item"))
+        if order_item.order.user != self.request.user:
+            return Response(
+                {"error": "You can only return items from your own orders."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if order_item.return_status != "Not Returned":
+            return Response(
+                {"error": "This item has already been processed for return."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer.save(user=self.request.user)
+        order_item.return_status = "Pending"
+        order_item.save()
