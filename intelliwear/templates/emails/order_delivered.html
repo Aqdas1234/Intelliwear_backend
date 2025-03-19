@@ -9,14 +9,17 @@
 
     <h3>Order Details:</h3>
     <ul>
-        {% for item in order_items %}
-            <li>{{ item.product.name }} (Size: {{ item.size.size }}) - Quantity: {{ item.quantity }} - Price: ${{ item.price }}</li>
+        {% for product in products_with_review_links %}
+            <li>
+                <strong>{{ product.name }}</strong>  
+                <br>
+                Please give us review against this product:  
+                <a href="{{ product.review_link }}">Write a Review</a>
+            </li>
         {% endfor %}
     </ul>
 
-    <p><strong>Total Price:</strong> ${{ total_price }}</p>
-    
-    <p>We hope you love your purchase! If you have any feedback or concerns, please feel free to contact us.</p>
+    <p>We hope you love your purchase! Your feedback is important to us. Please take a moment to review your products.</p>
 
     <p>Thank you for shopping with us!</p>
     <p>Best Regards,<br>IntelliWear Team</p>

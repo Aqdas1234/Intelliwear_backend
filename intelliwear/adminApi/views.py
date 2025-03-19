@@ -217,8 +217,8 @@ class AdminOrderListView(APIView):
 class AdminUpdateOrderStatusView(APIView):
     permission_classes = [IsSuperUser]
 
-    def post(self , request , order_id):
-        order = get_object_or_404(Order , id=order_id)
+    def post(self, request, order_id):
+        order = get_object_or_404(Order, id=order_id)
         new_status = request.data.get("status")
 
         valid_statuses = ["pending", "in_process", "shipped", "delivered"]
@@ -232,33 +232,40 @@ class AdminUpdateOrderStatusView(APIView):
             return Response({"message": f"Order status updated to {new_status} successfully."}, status=status.HTTP_200_OK)
 
         user_email = order.user.email
-        email_subject = f"Your Order #{order.id} is now {new_status.capitalize()}"    
+        email_subject = f"Your Order #{order.id} is now {new_status.capitalize()}"
+        order_items = order.items.all()
+
+        email_context = {
+            "user": order.user,
+            "order": order
+        }
 
         if new_status == "shipped":
             template_name = "emails/order_shipped.html"
-            email_context = {
-                "user": order.user,
-                "order": order,
-                "shipping_carrier": "TCS",  
+            email_context.update({
+                "shipping_carrier": "TCS",
                 "tracking_number": "12345",
-                "order_items": order.items.all(),
+                "order_items": order_items,
                 "total_price": order.total_price
-            }
+            })
 
         elif new_status == "delivered":
             template_name = "emails/order_delivered.html"
-            email_context = {
-                "user": order.user,
-                "order": order,
-                "order_items": order.items.all(),
-                "total_price": order.total_price
-            }    
+            email_context.update({
+                "products_with_review_links": [
+                    {
+                        "name": item.product.name,
+                        "review_link": f"{settings.FRONTEND_URL}/review?product_id={item.product.id}"
+                    }
+                    for item in order_items
+                ]
+            })
 
-        email_body = render_to_string(template_name , email_context)    
+        email_body = render_to_string(template_name, email_context)
 
         send_mail(
             email_subject,
-            "",
+            email_body,
             settings.DEFAULT_FROM_EMAIL,
             [user_email],
             fail_silently=False,
