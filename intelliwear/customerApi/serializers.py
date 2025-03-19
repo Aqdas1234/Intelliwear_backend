@@ -100,18 +100,25 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         return data
 
 class ProductListSerializer(serializers.ModelSerializer):
+    sizes = serializers.SerializerMethodField()
     class Meta:
         model = Product
         fields = ['id', 'name', 'price', 'description', 'image' , 'product_type']
 
+    def get_sizes(self, obj):
+        return SizeSerializer(obj.size_set.filter(quantity__gt=0), many=True).data
 
 class ProductDetailSerializer(serializers.ModelSerializer):
     media = MediaSerializer(many=True, read_only=True)
-    sizes = SizeSerializer(many=True, read_only=True)
+    sizes = serializers.SerializerMethodField()
     class Meta:
         model = Product
         fields = ['id', 'name', 'price','image', 'description', 'media','sizes']
 
+    def get_sizes(self, obj):
+        available_sizes = obj.size_set.filter(quantity__gt=0)  
+        return SizeSerializer(available_sizes, many=True).data 
+    
 class CartSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
     product_name = serializers.ReadOnlyField(source='product.name')

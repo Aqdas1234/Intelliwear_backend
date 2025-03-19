@@ -1,7 +1,7 @@
 from itertools import chain
 import json
 import stripe
-from django.db.models import Q
+from django.db.models import Q,Sum
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import transaction
@@ -74,10 +74,28 @@ class HomePageProductsView(generics.ListAPIView):
         description="Retrieve the latest products from each category for the homepage."
     )
     def get_queryset(self):
-        clothes = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')[:8]
-        shoes = Product.objects.filter(product_type='SHOES').order_by('-created_at')[:8]
-        accessories = Product.objects.filter(product_type='ACCESSORIES').order_by('-created_at')[:8]
-        return chain(clothes,shoes,accessories)
+        clothes = Product.objects.annotate(
+            total_quantity=Sum('size__quantity')
+        ).filter(
+            product_type='CLOTHES',
+            total_quantity__gt=0  
+        ).order_by('-created_at')[:8]
+
+        shoes = Product.objects.annotate(
+            total_quantity=Sum('size__quantity')
+        ).filter(
+            product_type='SHOES',
+            total_quantity__gt=0
+        ).order_by('-created_at')[:8]
+
+        accessories = Product.objects.annotate(
+            total_quantity=Sum('size__quantity')
+        ).filter(
+            product_type='ACCESSORIES',
+            total_quantity__gt=0
+        ).order_by('-created_at')[:8]
+
+        return chain(clothes, shoes, accessories)
     
 
 
@@ -91,12 +109,18 @@ class CategoryProductsListView(generics.ListAPIView):
     )
     def get_queryset(self):
         gender = self.kwargs['gender'].upper()
-        filter_condition = Q(gender=gender) | Q(gender="ALL")
-        clothes = Product.objects.filter(filter_condition, product_type="CLOTHES")[:8]
-        shoes = Product.objects.filter(filter_condition, product_type="SHOES")[:8]
-        accessories = Product.objects.filter(filter_condition, product_type="ACCESSORIES")[:8]
+        filter_condition = Q(gender=gender) | Q(gender="A")
 
-        return chain(clothes, shoes, accessories) 
+        clothes = Product.objects.filter(filter_condition, product_type="CLOTHES")\
+            .annotate(total_quantity=Sum('size__quantity')).filter(total_quantity__gt=0)[:8]
+
+        shoes = Product.objects.filter(filter_condition, product_type="SHOES")\
+            .annotate(total_quantity=Sum('size__quantity')).filter(total_quantity__gt=0)[:8]
+
+        accessories = Product.objects.filter(filter_condition, product_type="ACCESSORIES")\
+            .annotate(total_quantity=Sum('size__quantity')).filter(total_quantity__gt=0)[:8]
+
+        return chain(clothes, shoes, accessories)
 
 
 class CustomPagination(PageNumberPagination):
@@ -120,10 +144,13 @@ class ClothesListView(generics.ListAPIView):
         description="Retrieve a paginated list of clothes products with filtering options."
     )
     def get_queryset(self):
-        queryset = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')
+        queryset = Product.objects.filter(product_type='CLOTHES')\
+            .annotate(total_quantity=Sum('size__quantity')).filter(total_quantity__gt=0)\
+            .order_by('-created_at')
+
         gender = self.request.query_params.get('gender', None)
         if gender:
-            filter_condition = Q(gender=gender.upper()) | Q(gender="ALL")
+            filter_condition = Q(gender=gender.upper()) | Q(gender="A")
             queryset = queryset.filter(filter_condition)
         return queryset
 
@@ -142,10 +169,13 @@ class ShoesListView(generics.ListAPIView):
         description="Retrieve a paginated list of shoe products with filtering options."
     )
     def get_queryset(self):
-        queryset = Product.objects.filter(product_type='SHOES').order_by('-created_at')
+        queryset = Product.objects.filter(product_type='SHOES')\
+            .annotate(total_quantity=Sum('size__quantity')).filter(total_quantity__gt=0)\
+            .order_by('-created_at')
+
         gender = self.request.query_params.get('gender', None)
         if gender:
-            filter_condition = Q(gender=gender.upper()) | Q(gender="ALL")
+            filter_condition = Q(gender=gender.upper()) | Q(gender="A")
             queryset = queryset.filter(filter_condition)
         return queryset
 
@@ -165,13 +195,15 @@ class AccessoriesListView(generics.ListAPIView):
         description="Retrieve a paginated list of accessories products with filtering options."
     )
     def get_queryset(self):
-        queryset = Product.objects.filter(product_type='ACCESSORIES').order_by('-created_at')
+        queryset = Product.objects.filter(product_type='ACCESSORIES')\
+            .annotate(total_quantity=Sum('size__quantity')).filter(total_quantity__gt=0)\
+            .order_by('-created_at')
+
         gender = self.request.query_params.get('gender', None)
         if gender:
-            filter_condition = Q(gender=gender.upper()) | Q(gender="ALL")
+            filter_condition = Q(gender=gender.upper()) | Q(gender="A")
             queryset = queryset.filter(filter_condition)
         return queryset
-
 
 
 '''
