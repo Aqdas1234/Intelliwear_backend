@@ -125,6 +125,7 @@ class Order(models.Model):
             self.status_updated_at = now() 
         super().save(*args, **kwargs)
 
+
     def __str__(self):
         return f"Order {self.id} by {self.user.email} - {self.status}"
 
