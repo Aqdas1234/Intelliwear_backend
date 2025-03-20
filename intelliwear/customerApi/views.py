@@ -1,4 +1,5 @@
 from itertools import chain
+from django.utils.timezone import now
 import json
 import stripe
 from django.db.models import Q,Sum
@@ -75,21 +76,21 @@ class HomePageProductsView(generics.ListAPIView):
     )
     def get_queryset(self):
         clothes = Product.objects.annotate(
-            total_quantity=Sum('size__quantity')
+            total_quantity=Sum('sizes__quantity')
         ).filter(
             product_type='CLOTHES',
             total_quantity__gt=0  
         ).order_by('-created_at')[:8]
 
         shoes = Product.objects.annotate(
-            total_quantity=Sum('size__quantity')
+            total_quantity=Sum('sizes__quantity')
         ).filter(
             product_type='SHOES',
             total_quantity__gt=0
         ).order_by('-created_at')[:8]
 
         accessories = Product.objects.annotate(
-            total_quantity=Sum('size__quantity')
+            total_quantity=Sum('sizes__quantity')
         ).filter(
             product_type='ACCESSORIES',
             total_quantity__gt=0
@@ -112,13 +113,13 @@ class CategoryProductsListView(generics.ListAPIView):
         filter_condition = Q(gender=gender) | Q(gender="A")
 
         clothes = Product.objects.filter(filter_condition, product_type="CLOTHES")\
-            .annotate(total_quantity=Sum('size__quantity')).filter(total_quantity__gt=0)[:8]
+            .annotate(total_quantity=Sum('sizes__quantity')).filter(total_quantity__gt=0)[:8]
 
         shoes = Product.objects.filter(filter_condition, product_type="SHOES")\
-            .annotate(total_quantity=Sum('size__quantity')).filter(total_quantity__gt=0)[:8]
+            .annotate(total_quantity=Sum('sizes__quantity')).filter(total_quantity__gt=0)[:8]
 
         accessories = Product.objects.filter(filter_condition, product_type="ACCESSORIES")\
-            .annotate(total_quantity=Sum('size__quantity')).filter(total_quantity__gt=0)[:8]
+            .annotate(total_quantity=Sum('sizes__quantity')).filter(total_quantity__gt=0)[:8]
 
         return chain(clothes, shoes, accessories)
 
@@ -135,7 +136,7 @@ class ClothesListView(generics.ListAPIView):
     pagination_class = CustomPagination
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['gender']
+    #filterset_fields = ['gender']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
@@ -145,14 +146,14 @@ class ClothesListView(generics.ListAPIView):
     )
     def get_queryset(self):
         queryset = Product.objects.filter(product_type='CLOTHES')\
-            .annotate(total_quantity=Sum('size__quantity')).filter(total_quantity__gt=0)\
+            .annotate(total_quantity=Sum('sizes__quantity')).filter(total_quantity__gt=0)\
             .order_by('-created_at')
 
         gender = self.request.query_params.get('gender', None)
         if gender:
-            filter_condition = Q(gender=gender.upper()) | Q(gender="A")
-            queryset = queryset.filter(filter_condition)
-        return queryset
+            gender = gender.upper()  
+            queryset = queryset.filter(Q(gender=gender) | Q(gender="A"))
+        return queryset      
 
 class ShoesListView(generics.ListAPIView):
     serializer_class = ProductListSerializer
@@ -160,7 +161,7 @@ class ShoesListView(generics.ListAPIView):
     pagination_class = CustomPagination
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['gender']
+    #filterset_fields = ['gender']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
@@ -170,7 +171,7 @@ class ShoesListView(generics.ListAPIView):
     )
     def get_queryset(self):
         queryset = Product.objects.filter(product_type='SHOES')\
-            .annotate(total_quantity=Sum('size__quantity')).filter(total_quantity__gt=0)\
+            .annotate(total_quantity=Sum('sizes__quantity')).filter(total_quantity__gt=0)\
             .order_by('-created_at')
 
         gender = self.request.query_params.get('gender', None)
@@ -186,7 +187,7 @@ class AccessoriesListView(generics.ListAPIView):
     pagination_class = CustomPagination
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['gender']
+    #filterset_fields = ['gender']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
@@ -196,7 +197,7 @@ class AccessoriesListView(generics.ListAPIView):
     )
     def get_queryset(self):
         queryset = Product.objects.filter(product_type='ACCESSORIES')\
-            .annotate(total_quantity=Sum('size__quantity')).filter(total_quantity__gt=0)\
+            .annotate(total_quantity=Sum('sizes__quantity')).filter(total_quantity__gt=0)\
             .order_by('-created_at')
 
         gender = self.request.query_params.get('gender', None)
@@ -682,7 +683,8 @@ class PlaceOrderViewStripe(APIView):
         order = Order.objects.create(
             user=user, 
             total_price=total_price, 
-            status="in_process" if payment_status == "Completed" else "pending"
+            status="in_process" if payment_status == "Completed" else "pending",
+            status_updated_at=now() 
         )
         order_items = []
 
