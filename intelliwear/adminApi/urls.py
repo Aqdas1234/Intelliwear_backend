@@ -1,6 +1,8 @@
 from django.urls import path,include
 from rest_framework.routers import DefaultRouter
-from .views import ProfileView,AdminCustomerListView,AdminCustomerDetailView,ProductViewSet,CarouselViewSet , AdminOrderListView , AdminUpdateOrderStatusView , AdminAnalyticsView
+
+from .views import AdminReturnRequestListView, AdminReturnRequestView, ProfileView,AdminCustomerListView,AdminCustomerDetailView,ProductViewSet,CarouselViewSet , AdminOrderListView , AdminUpdateOrderStatusView,AdminAnalyticsView
+
 
 router = DefaultRouter()
 router.register(r'products', ProductViewSet, basename='product')
@@ -17,5 +19,6 @@ urlpatterns = [
     path('customers/<int:user_id>/', AdminCustomerDetailView.as_view(), name='admin-customer-detail'),
     #path('seller/products/', ProductViewSet.as_view(), name='products'),
     path('', include(router.urls)),
-
+    path("admin/return-requests/", AdminReturnRequestListView.as_view(), name="admin-return-request-list"),
+    path("return-request/<int:pk>/", AdminReturnRequestView.as_view(), name="admin-return-request"),
 ]
