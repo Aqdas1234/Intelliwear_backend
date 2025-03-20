@@ -1,8 +1,8 @@
 from django.shortcuts import render
 from django.conf import settings
 #from django.contrib.auth.models import User
-from rest_framework import viewsets, status , filters
-from customerApi.serializers import UserSerializer
+from rest_framework import viewsets, status , filters,generics
+from customerApi.serializers import ReturnRequestSerializer, UserSerializer
 from .serializers import ProductSerializer,CarouselSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import BasePermission, AllowAny
@@ -15,7 +15,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.parsers import MultiPartParser, FormParser
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 from customerApi.serializers import OrderSerializer
-from customerApi.models import Order
+from customerApi.models import Order, ReturnRequest
 from django.template.loader import render_to_string
 from django.core.mail import send_mail
 
@@ -273,3 +273,57 @@ class AdminUpdateOrderStatusView(APIView):
         )
 
         return Response({"message": f"Order status updated to {new_status} and email sent."}, status=status.HTTP_200_OK)
+
+class AdminReturnRequestListView(generics.ListAPIView):
+    serializer_class = ReturnRequestSerializer
+    permission_classes = [IsSuperUser]
+    queryset = ReturnRequest.objects.all()
+
+
+
+class AdminReturnRequestView(generics.RetrieveUpdateAPIView):
+    serializer_class = ReturnRequestSerializer
+    permission_classes = [IsSuperUser]
+    queryset = ReturnRequest.objects.all()
+
+    def update(self, request, *args, **kwargs):
+        """Admin can approve/reject return requests"""
+        instance = self.get_object()
+        new_status = request.data.get("status")
+
+        if new_status not in ["Approved", "Rejected"]:
+            return Response({"error": "Invalid status. Choose 'Approved' or 'Rejected'."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        instance.status = new_status
+        instance.save()
+
+        instance.order_item.return_status = new_status
+        instance.order_item.save()
+        self.send_email_to_customer(instance)
+
+        return Response(self.get_serializer(instance).data, status=status.HTTP_200_OK)
+
+    def send_email_to_customer(self, return_request):
+        user_email = return_request.user.email
+        subject = f"Return Request Update: {return_request.status}"
+
+        context = {
+            "user": return_request.user,
+            "order_item": return_request.order_item,
+        }
+        if return_request.status == "Approved":
+            template_name = "emails/return_request_approved.html"
+        else:
+            template_name = "emails/return_request_rejected.html"
+
+        email_body = render_to_string(template_name, context)
+
+        send_mail(
+            subject,
+            email_body,
+            settings.DEFAULT_FROM_EMAIL,
+            [user_email],
+            fail_silently=False,
+            html_message=email_body
+        )
