@@ -10,7 +10,7 @@ from django.core.validators import MinValueValidator,MaxValueValidator
 from django.conf import settings  
 #from django.contrib.auth import get_user_model
 from adminApi.serializers import ProductSerializer,MediaSerializer, SizeSerializer
-from .models import User, Cart, Order, OrderItem, Review, ShippingAddress, Payment
+from .models import ReturnRequest, User, Cart, Order, OrderItem, Review, ShippingAddress, Payment
 from adminApi.models import Product, Size
 
 
@@ -136,9 +136,10 @@ class CartSerializer(serializers.ModelSerializer):
 class OrderItemSerializer(serializers.ModelSerializer):
     size = serializers.PrimaryKeyRelatedField(queryset=Size.objects.all())  # Required input field
     product_name = serializers.CharField(source='product.name', read_only=True)
+    return_status = serializers.CharField(read_only=True)
     class Meta:
         model = OrderItem
-        fields = ['product','product_name', 'size', 'quantity', 'price']
+        fields = ['id','product','product_name', 'size', 'quantity', 'price','return_status']
 
     def validate_size(self, value):
         if value is None:
@@ -191,6 +192,17 @@ class AddToCartSerializer(serializers.Serializer):
     size_id = serializers.IntegerField(required=True, help_text="ID of the size variant for the product")
     quantity = serializers.IntegerField(default=1, min_value=1, help_text="Quantity of the product to add (default: 1)")
 
+
+class ReturnRequestSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="order_item.product.name", read_only=True)
+    size = serializers.CharField(source="order_item.size.size", read_only=True)  
+    quantity = serializers.IntegerField(source="order_item.quantity", read_only=True)
+    price = serializers.DecimalField(source="order_item.price", max_digits=10, decimal_places=2, read_only=True)
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+
+    class Meta:
+        model = ReturnRequest
+        fields = ["id", "order_item", "product_name", "size", "quantity", "price", "reason", "status", "created_at"]
 
 
 '''
