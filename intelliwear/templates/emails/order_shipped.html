@@ -14,11 +14,11 @@
     <h3>Order Details:</h3>
     <ul>
         {% for item in order_items %}
-            <li>{{ item.product.name }} (Size: {{ item.size.size }}) - Quantity: {{ item.quantity }} - Price: ${{ item.price }}</li>
+            <li>{{ item.product.name }} (Size: {{ item.size.size }}) - Quantity: {{ item.quantity }} - Price: {{ item.price }} PKR</li>
         {% endfor %}
     </ul>
 
-    <p><strong>Total Price:</strong> ${{ total_price }}</p>
+    <p><strong>Total Price:</strong> {{ total_price }} PKR</p>
     <p>Your order is on the way and should arrive soon!</p>
 
     <p>Thank you for shopping with us!</p>

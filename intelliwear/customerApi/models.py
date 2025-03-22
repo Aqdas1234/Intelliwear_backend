@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.utils.timezone import now
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.exceptions import ValidationError
@@ -108,11 +109,23 @@ class Order(models.Model):
         ('cancelled', 'Cancelled'),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, default=2)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=2 , related_name="orders")
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
-    status_updated_at = models.DateTimeField(default=timezone.now) 
+
+    status_updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if self.pk:  
+            old_order = Order.objects.get(pk=self.pk)
+            if old_order.status != self.status:
+                self.status_updated_at = now() 
+        else:
+            self.status_updated_at = now() 
+        super().save(*args, **kwargs)
+
+
     def __str__(self):
         return f"Order {self.id} by {self.user.email} - {self.status}"
 

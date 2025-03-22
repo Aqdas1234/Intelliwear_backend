@@ -1,6 +1,8 @@
 from django.urls import path,include
 from rest_framework.routers import DefaultRouter
-from .views import AdminReturnRequestListView, AdminReturnRequestView, ProfileView,AdminCustomerListView,AdminCustomerDetailView,ProductViewSet,CarouselViewSet , AdminOrderListView , AdminUpdateOrderStatusView
+
+from .views import AdminReturnRequestListView, AdminReturnRequestView, ProfileView,AdminCustomerListView,AdminCustomerDetailView,ProductViewSet,CarouselViewSet , AdminOrderListView , AdminUpdateOrderStatusView,AdminAnalyticsView
+
 
 router = DefaultRouter()
 router.register(r'products', ProductViewSet, basename='product')
