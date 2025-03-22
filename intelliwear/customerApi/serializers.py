@@ -182,7 +182,7 @@ class OrderSerializer(serializers.ModelSerializer):
 
 class ReviewSerializer(serializers.ModelSerializer):
     rating = serializers.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
-
+    product = serializers.PrimaryKeyRelatedField(read_only=True)
     class Meta:
         model = Review
         fields = ['id', 'product', 'user', 'rating', 'comment', 'created_at']

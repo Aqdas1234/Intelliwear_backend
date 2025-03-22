@@ -608,15 +608,18 @@ class ProductDetailView(APIView):
 class CreateReviewView(APIView):
     permission_classes = [IsCustomerUser]
 
-    def post(self, request, product_id):
+    def post(self, request):
+        product_id = request.query_params.get("product_id")  
+        if not product_id:
+            return Response({"error": "Product ID is required as a query parameter."}, status=400)
         product = get_object_or_404(Product, id=product_id)
         user = request.user
-        # Prevent duplicate reviews
         if Review.objects.filter(product=product, user=user).exists():
             return Response({"error": "You have already reviewed this product."}, status=400)
+
         serializer = ReviewSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(user=user, product=product)
+            serializer.save(user=user, product=product)  
             return Response(serializer.data, status=201)
 
         return Response(serializer.errors, status=400)
