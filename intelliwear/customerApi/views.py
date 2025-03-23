@@ -710,6 +710,8 @@ class PlaceOrderViewStripe(APIView):
             size.quantity -= item["quantity"]
             size.save()
 
+            product.update_sold_out(item["quantity"])
+
         OrderItem.objects.bulk_create(order_items)
 
         # Use the shipping_info dictionary directly
