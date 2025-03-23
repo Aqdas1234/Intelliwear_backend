@@ -144,7 +144,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'description', 'price', 'product_type', 'image', 'sizes', 'media', 'gender', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'price', 'product_type', 'sold_out' , 'image', 'sizes', 'media', 'gender', 'created_at', 'updated_at' ]
 
     def validate_sizes(self, value):
         try:

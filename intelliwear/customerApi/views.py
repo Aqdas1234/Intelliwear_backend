@@ -661,8 +661,8 @@ class PlaceOrderViewStripe(APIView):
                         "quantity": 1,
                     }],
                     mode="payment",
-                    success_url=f"{settings.FRONTEND_URL}/myorders/",
-                    cancel_url=f"{settings.FRONTEND_URL}/checkout/",
+                    success_url=f"{settings.FRONTEND_URL}/myorders/?source=stripe",
+                    cancel_url=f"{settings.FRONTEND_URL}/checkout/?source=stripe",
                     metadata={
                         "user_id": str(request.user.id), 
                         "cart_data": json.dumps(checkout_data), 
@@ -709,6 +709,8 @@ class PlaceOrderViewStripe(APIView):
             )
             size.quantity -= item["quantity"]
             size.save()
+
+            product.update_sold_out(item["quantity"])
 
         OrderItem.objects.bulk_create(order_items)
 

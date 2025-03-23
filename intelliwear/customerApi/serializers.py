@@ -185,10 +185,17 @@ class OrderSerializer(serializers.ModelSerializer):
 class ReviewSerializer(serializers.ModelSerializer):
     rating = serializers.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     product = serializers.PrimaryKeyRelatedField(read_only=True)
+    user_name = serializers.SerializerMethodField()
+    product_name = serializers.SerializerMethodField()
     class Meta:
         model = Review
-        fields = ['id', 'product', 'user', 'rating', 'comment', 'created_at']
+        fields = ['id', 'product', 'product_name' , 'user', 'user_name' , 'rating', 'comment', 'created_at']
 
+    def get_user_name(self, obj):
+        return obj.user.name if hasattr(obj.user, "name") and obj.user.name else "Anonymous"
+
+    def get_product_name(self, obj):
+        return obj.product.name if hasattr(obj.product, "name") else "Unknown Product"
 class AddToCartSerializer(serializers.Serializer):
     product_id = serializers.IntegerField(required=True, help_text="ID of the product to add to the cart")
     size_id = serializers.IntegerField(required=True, help_text="ID of the size variant for the product")

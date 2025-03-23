@@ -2,7 +2,7 @@ from django.shortcuts import render
 from django.conf import settings
 #from django.contrib.auth.models import User
 from rest_framework import viewsets, status , filters,generics
-from customerApi.serializers import ReturnRequestSerializer, UserSerializer
+from customerApi.serializers import ReturnRequestSerializer, UserSerializer , ReviewSerializer
 from .serializers import ProductSerializer,CarouselSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import BasePermission, AllowAny
@@ -15,7 +15,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.parsers import MultiPartParser, FormParser
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 from customerApi.serializers import OrderSerializer
-from customerApi.models import Order, ReturnRequest
+from customerApi.models import Order, ReturnRequest , Review
 from django.template.loader import render_to_string
 from django.core.mail import send_mail
 from django.db.models import Count, Sum, Case, When, IntegerField, FloatField
@@ -271,7 +271,7 @@ class AdminUpdateOrderStatusView(APIView):
                 "products_with_review_links": [
                     {
                         "name": item.product.name,
-                        "review_link": f"{settings.FRONTEND_URL}/review?product_id={item.product.id}"
+                        "review_link": f"{settings.FRONTEND_URL}/product/{item.product.id}?source=email"
                     }
                     for item in order_items
                 ]
@@ -397,4 +397,20 @@ class AdminReturnRequestView(generics.RetrieveUpdateAPIView):
             fail_silently=False,
             html_message=email_body
         )
+class AdminReviewListView(APIView):
+    permission_classes = [IsSuperUser]  
+    pagination_class = MyLimitOffsetPagination 
 
+    def get(self, request):
+        reviews = Review.objects.all().order_by('-created_at')  
+        
+        paginator = self.pagination_class() 
+        paginated_reviews = paginator.paginate_queryset(reviews, request) 
+        
+        serializer = ReviewSerializer(paginated_reviews, many=True)  
+        return paginator.get_paginated_response(serializer.data)  
+
+    def delete(self, request, review_id):
+        review = get_object_or_404(Review, id=review_id)  
+        review.delete()  
+        return Response({"message": "Review deleted successfully"}, status=status.HTTP_204_NO_CONTENT)    
