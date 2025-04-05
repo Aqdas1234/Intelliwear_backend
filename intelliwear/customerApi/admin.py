@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import ReturnRequest, User, Cart, Order, OrderItem, Review, Payment, ShippingAddress
+from django.utils.html import format_html
+
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
@@ -66,7 +68,13 @@ class PaymentAdmin(admin.ModelAdmin):
 
 @admin.register(ReturnRequest)
 class ReturnRequestAdmin(admin.ModelAdmin):
-    list_display = ("id", "order_item", "user", "status", "created_at")
+    list_display = ("id", "order_item", "user", "quantity", "status", "created_at", "image_preview")
     list_filter = ("status", "created_at")
     search_fields = ("order_item__product__name", "user__email")
     ordering = ("-created_at",)
+
+    def image_preview(self, obj):
+        if obj.image:
+            return format_html('<img src="{}" width="50" height="50" style="object-fit:cover;" />', obj.image.url)
+        return "-"
+    image_preview.short_description = "Image"

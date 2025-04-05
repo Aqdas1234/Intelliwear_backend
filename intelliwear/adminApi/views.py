@@ -255,7 +255,7 @@ class AdminUpdateOrderStatusView(APIView):
                 "products_with_review_links": [
                     {
                         "name": item.product.name,
-                        "review_link": f"{settings.FRONTEND_URL}/review?product_id={item.product.id}"
+                        "review_link": f"{settings.FRONTEND_URL}/product/{item.product.id}/"
                     }
                     for item in order_items
                 ]

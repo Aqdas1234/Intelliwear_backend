@@ -190,13 +190,26 @@ class AddToCartSerializer(serializers.Serializer):
 class ReturnRequestSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="order_item.product.name", read_only=True)
     size = serializers.CharField(source="order_item.size.size", read_only=True)  
-    quantity = serializers.IntegerField(source="order_item.quantity", read_only=True)
+    ordered_quantity = serializers.IntegerField(source="order_item.quantity", read_only=True)
+    return_quantity = serializers.IntegerField()  
     price = serializers.DecimalField(source="order_item.price", max_digits=10, decimal_places=2, read_only=True)
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    image = serializers.ImageField(required=False, allow_null=True)  
 
     class Meta:
         model = ReturnRequest
-        fields = ["id", "order_item", "product_name", "size", "quantity", "price", "reason", "status", "created_at"]
+        fields = ["id","order_item","product_name","size", "ordered_quantity", "return_quantity", "price","reason","image","status","created_at" ]
+
+    # Map the model field 'quantity' to serializer field 'return_quantity'
+    def to_internal_value(self, data):
+        internal = super().to_internal_value(data)
+        internal['quantity'] = internal.pop('return_quantity', None)
+        return internal
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['return_quantity'] = instance.quantity  # custom field mapping back
+        return rep
 
 
 '''
