@@ -2,7 +2,7 @@ from django.shortcuts import render
 from django.conf import settings
 #from django.contrib.auth.models import User
 from rest_framework import viewsets, status , filters,generics
-from customerApi.serializers import ReturnRequestSerializer, UserSerializer
+from customerApi.serializers import ReturnRequestSerializer, UserSerializer , ReviewSerializer
 from .serializers import ProductSerializer,CarouselSerializer
 from rest_framework.response import Response
 from rest_framework.permissions import BasePermission, AllowAny
@@ -15,9 +15,12 @@ from django.contrib.auth import get_user_model
 from rest_framework.parsers import MultiPartParser, FormParser
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 from customerApi.serializers import OrderSerializer
-from customerApi.models import Order, ReturnRequest
+from customerApi.models import Order, ReturnRequest , Review
 from django.template.loader import render_to_string
 from django.core.mail import send_mail
+from django.db.models import Count, Sum, Case, When, IntegerField, FloatField
+from django.utils.timezone import now
+from datetime import timedelta
 
 #from .models import Product,Size,Color,Media
 User = get_user_model() 
@@ -108,7 +111,20 @@ class AdminCustomerListView(APIView):
         responses={200: UserSerializer(many=True)}
     )
     def get(self, request):
-        users = User.objects.filter(user_type="customer").order_by("-created_at")
+        users = User.objects.filter(user_type="customer").annotate(
+            total_delivered_orders=Count(
+                Case(
+                    When(orders__status="delivered", then=1),
+                    output_field=IntegerField(),
+                )
+            ),
+            total_delivered_price=Sum(
+                Case(
+                    When(orders__status="delivered", then="orders__total_price"),
+                    output_field=FloatField(),
+                )
+            ),
+        ).order_by("-created_at")
 
         paginator = self.pagination_class()  
         paginated_users = paginator.paginate_queryset(users, request)
@@ -255,7 +271,7 @@ class AdminUpdateOrderStatusView(APIView):
                 "products_with_review_links": [
                     {
                         "name": item.product.name,
-                        "review_link": f"{settings.FRONTEND_URL}/product/{item.product.id}/"
+                        "review_link": f"{settings.FRONTEND_URL}/product/{item.product.id}?source=email"
                     }
                     for item in order_items
                 ]
@@ -273,6 +289,60 @@ class AdminUpdateOrderStatusView(APIView):
         )
 
         return Response({"message": f"Order status updated to {new_status} and email sent."}, status=status.HTTP_200_OK)
+
+
+class AdminAnalyticsView(APIView):
+    def get(self, request):
+        today = now().date()
+        filter_type = request.GET.get("filter", "last_7_days")  
+
+        if filter_type == "last_7_days":
+            start_date = today - timedelta(days=7)
+        elif filter_type == "last_14_days":
+            start_date = today - timedelta(days=14)
+        elif filter_type == "last_30_days":
+            start_date = today - timedelta(days=30)
+        elif filter_type == "last_90_days":
+            start_date = today - timedelta(days=90)
+        elif filter_type == "all_time":
+            start_date = None  
+        else:
+            return Response({"error": "Invalid filter type"}, status=400)
+
+        if start_date:
+            orders = Order.objects.filter(created_at__date__gte=start_date)
+        else:
+            orders = Order.objects.all()
+
+        delivered_orders = orders.filter(status="delivered")
+        
+        total_sales = delivered_orders.aggregate(total=Sum("total_price"))["total"] or 0
+        total_orders = orders.count()
+        delivered_orders_count = delivered_orders.count()
+        avg_order_value = total_sales / delivered_orders_count if delivered_orders_count > 0 else 0
+
+        today_sales = delivered_orders.filter(status_updated_at__date=today).aggregate(total=Sum("total_price"))["total"] or 0
+
+        order_status_counts = orders.values("status").annotate(count=Count("id"))
+        order_status_data = {
+            "cancelled": 0,
+            "shipped": 0,
+            "delivered": 0,
+            "in_process": 0
+        }
+        for entry in order_status_counts:
+            order_status_data[entry["status"]] = entry["count"]
+
+        return Response({
+            "start_date": start_date if start_date else "All Time",
+            "end_date": today,
+            "total_sales": total_sales,
+            "today_sales": today_sales,
+            "total_orders": total_orders,
+            "avg_order_value": avg_order_value,
+            "order_status_data": order_status_data,  
+        })
+
 
 class AdminReturnRequestListView(generics.ListAPIView):
     serializer_class = ReturnRequestSerializer
@@ -327,3 +397,20 @@ class AdminReturnRequestView(generics.RetrieveUpdateAPIView):
             fail_silently=False,
             html_message=email_body
         )
+class AdminReviewListView(APIView):
+    permission_classes = [IsSuperUser]  
+    pagination_class = MyLimitOffsetPagination 
+
+    def get(self, request):
+        reviews = Review.objects.all().order_by('-created_at')  
+        
+        paginator = self.pagination_class() 
+        paginated_reviews = paginator.paginate_queryset(reviews, request) 
+        
+        serializer = ReviewSerializer(paginated_reviews, many=True)  
+        return paginator.get_paginated_response(serializer.data)  
+
+    def delete(self, request, review_id):
+        review = get_object_or_404(Review, id=review_id)  
+        review.delete()  
+        return Response({"message": "Review deleted successfully"}, status=status.HTTP_204_NO_CONTENT)    
