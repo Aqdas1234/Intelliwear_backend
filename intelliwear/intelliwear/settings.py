@@ -39,7 +39,7 @@ DEBUG = env.bool("DEBUG", default=False)
 
 # ALLOWED_HOSTS = []
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost","4de5-14-1-105-129.ngrok-free.app"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost","98bb-2402-ad80-a3-5300-5123-6e00-4137-4201.ngrok-free.app"]
 
 
 AUTH_USER_MODEL = 'customerApi.User' 

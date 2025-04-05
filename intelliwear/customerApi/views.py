@@ -698,21 +698,20 @@ class PlaceOrderViewStripe(APIView):
             if size.quantity < item["quantity"]:
                 raise ValueError(f"Only {size.quantity} items available in stock for '{product.name}' (Size: {size.size}).")
 
-            order_items.append(
-                OrderItem(
-                    order=order, 
-                    product=product, 
-                    size=size, 
-                    quantity=item["quantity"], 
-                    price=Decimal(item["price"])
-                )
+            # Create OrderItem one by one
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                size=size,
+                quantity=item["quantity"],
+                price=Decimal(item["price"])
             )
+
             size.quantity -= item["quantity"]
             size.save()
 
             product.update_sold_out(item["quantity"])
 
-        OrderItem.objects.bulk_create(order_items)
 
         # Use the shipping_info dictionary directly
         ShippingAddress.objects.create(
@@ -868,8 +867,7 @@ class CustomerReturnRequestView(generics.ListCreateAPIView):
         return ReturnRequest.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        """Allow customers to create a return request"""
-        order_item = get_object_or_404(OrderItem, id=self.request.data.get("order_item"))
+        order_item = get_object_or_404(OrderItem, id=self.request.data.get("order_item")) 
         if order_item.order.user != self.request.user:
             return Response(
                 {"error": "You can only return items from your own orders."},
@@ -880,7 +878,16 @@ class CustomerReturnRequestView(generics.ListCreateAPIView):
                 {"error": "This item has already been processed for return."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        serializer.save(user=self.request.user)
+        return_quantity = int(self.request.data.get("quantity", 1))
+        if return_quantity > order_item.quantity:
+            return Response(
+                {"error": "Return quantity exceeds the quantity ordered."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        image = self.request.data.get("image", None)
+        if image:
+            serializer.save(user=self.request.user, image=image)
+        else:
+            serializer.save(user=self.request.user)
         order_item.return_status = "Pending"
         order_item.save()

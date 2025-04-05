@@ -172,7 +172,9 @@ class Review(models.Model):
 class ReturnRequest(models.Model):
     order_item = models.ForeignKey(OrderItem, on_delete=models.CASCADE, related_name="returns")
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField(default=1)
     reason = models.TextField()
+    image = models.ImageField(upload_to='return_proofs/', null=True, blank=True, help_text="Optional: Upload image of damaged/wrong product")
     status = models.CharField(
         max_length=20,
         choices=[
@@ -185,4 +187,17 @@ class ReturnRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Return Request for {self.order_item.product.name} - {self.status}"
+        return f"Return {self.quantity} x {self.order_item.product.name} - {self.status}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.quantity > self.order_item.quantity:
+            raise ValidationError("Return quantity exceeds ordered quantity.")
+
+        existing_returns = self.order_item.returns.exclude(id=self.id).aggregate(
+            total_returned=models.Sum('quantity')
+        )['total_returned'] or 0
+
+        if existing_returns + self.quantity > self.order_item.quantity:
+            raise ValidationError("Total return quantity exceeds what's been ordered.")
