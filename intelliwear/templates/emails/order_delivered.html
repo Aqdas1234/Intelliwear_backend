@@ -14,7 +14,8 @@
                 <strong>{{ product.name }}</strong>  
                 <br>
                 Please give us review against this product:  
-                <a href="{{ product.review_link }}">Write a Review</a>
+                <a href="{{ product.review_link }}">{{ product.review_link }}</a>
+                <br><br>
             </li>
         {% endfor %}
     </ul>
