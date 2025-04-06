@@ -61,6 +61,8 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'drf_spectacular_sidecar', 
     'corsheaders',
+    'django_celery_beat',
+    'recommendation',
 ]
 
 MIDDLEWARE = [
@@ -265,3 +267,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "https://*.ngrok-free.app"
 ]
+
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Redis must be installed and running
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'

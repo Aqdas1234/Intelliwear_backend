@@ -18,7 +18,7 @@ from customerApi.serializers import OrderSerializer
 from customerApi.models import Order, ReturnRequest
 from django.template.loader import render_to_string
 from django.core.mail import send_mail
-
+from recommendation.logic.singleton import get_cb_model
 #from .models import Product,Size,Color,Media
 User = get_user_model() 
 from drf_yasg.utils import swagger_auto_schema
@@ -174,6 +174,32 @@ class ProductViewSet(viewsets.ModelViewSet):
         if size:
             queryset = queryset.filter(sizes__size=size)  
         return queryset
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        
+        # Convert instance to DataFrame format required by addProducts
+        import pandas as pd
+        
+        data = {
+            'ProductID': [instance.id],
+            'ProductName': [instance.name],
+            'Description': [instance.description],
+            'Price': [instance.price],
+            'Type': [instance.product_type],
+            'Gender': [instance.gender],
+            'Status': ['active'],
+        }
+        df = pd.DataFrame(data)
+
+        get_cb_model().addProducts(df)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        product_id = instance.id
+        get_cb_model().delete(product_id)
+        return super().destroy(request, *args, **kwargs)
+
 
 @extend_schema(tags=["Carousel"])
 class CarouselViewSet(viewsets.ModelViewSet):
