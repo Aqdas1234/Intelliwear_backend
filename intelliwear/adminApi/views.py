@@ -379,7 +379,7 @@ class AdminReturnRequestView(generics.RetrieveUpdateAPIView):
         subject = f"Return Request Update: {return_request.status}"
 
         context = {
-            "user": return_request.user,
+            "user": return_request.user.name,
             "order_item": return_request.order_item,
         }
         if return_request.status == "Approved":

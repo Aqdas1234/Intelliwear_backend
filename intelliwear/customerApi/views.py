@@ -606,7 +606,7 @@ class ProductDetailView(APIView):
         return paginator.get_paginated_response(response_data)
 
 class CreateReviewView(APIView):
-    permission_classes = [IsCustomerUser]
+    # permission_classes = [IsCustomerUser]
 
     def post(self, request):
         product_id = request.query_params.get("product_id")  
@@ -888,6 +888,6 @@ class CustomerReturnRequestView(generics.ListCreateAPIView):
         if image:
             serializer.save(user=self.request.user, image=image)
         else:
-            serializer.save(user=self.request.user)
+            serializer.save(user=self.request.user , quantity=return_quantity)
         order_item.return_status = "Pending"
         order_item.save()
