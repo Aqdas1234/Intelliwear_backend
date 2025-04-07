@@ -6,6 +6,8 @@ from django.core.exceptions import ValidationError
 from adminApi.models import Product,Size
 import uuid
 from django.core.validators import MinValueValidator, MaxValueValidator
+from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -174,7 +176,8 @@ class ReturnRequest(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
     reason = models.TextField()
-    image = models.ImageField(upload_to='return_proofs/', null=True, blank=True, help_text="Optional: Upload image of damaged/wrong product")
+    image = CloudinaryField('image', blank=True, null=True,folder="return_proofs/")
+    #image = models.ImageField(upload_to='return_proofs/', null=True, blank=True, help_text="Optional: Upload image of damaged/wrong product")
     status = models.CharField(
         max_length=20,
         choices=[
@@ -201,3 +204,11 @@ class ReturnRequest(models.Model):
 
         if existing_returns + self.quantity > self.order_item.quantity:
             raise ValidationError("Total return quantity exceeds what's been ordered.")
+        
+    def delete(self, *args, **kwargs):
+        if self.image:
+            try:
+                destroy(self.image.public_id)
+            except Exception as e:
+                print("Cloudinary image delete error:", e)
+        super().delete(*args, **kwargs)
