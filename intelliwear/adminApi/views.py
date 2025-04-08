@@ -18,7 +18,7 @@ from customerApi.serializers import OrderSerializer
 from customerApi.models import Order, ReturnRequest
 from django.template.loader import render_to_string
 from django.core.mail import send_mail
-from recommendation.logic.singleton import get_cb_model
+from recommendation.logic.singleton import get_cb_model,get_cf_model
 #from .models import Product,Size,Color,Media
 User = get_user_model() 
 from drf_yasg.utils import swagger_auto_schema
@@ -191,13 +191,19 @@ class ProductViewSet(viewsets.ModelViewSet):
             'Status': ['active'],
         }
         df = pd.DataFrame(data)
-
-        get_cb_model().addProducts(df)
+        cb_model = get_cb_model()
+        if cb_model is not None:
+            cb_model.addProducts(df)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         product_id = instance.id
-        get_cb_model().delete(product_id)
+        cb_model = get_cb_model()
+        if cb_model is not None:
+            cb_model.delete(product_id)
+        cf_model = get_cf_model()
+        if cf_model is not None:
+            cf_model.delete_product(product_id)
         return super().destroy(request, *args, **kwargs)
 
 

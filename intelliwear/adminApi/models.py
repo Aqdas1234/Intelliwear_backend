@@ -68,6 +68,7 @@ class Product(models.Model):
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    sold_out = models.PositiveIntegerField(default=0) 
 
     def clean(self):
         """Custom validation for required image field"""

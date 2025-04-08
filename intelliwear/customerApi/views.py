@@ -23,6 +23,7 @@ from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.pagination import PageNumberPagination
+from recommendation.models import SimilarProduct,Recommendation
 
 
 class IsCustomerUser(BasePermission):
@@ -64,21 +65,62 @@ class CustomerProfileView(APIView):
         request.user.delete()  # Delete the user account
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+class CustomPagination(PageNumberPagination):
+    page_size = 32
+    page_size_query_param = 'page_size'  
+    max_page_size = 100  
+
 
 class HomePageProductsView(generics.ListAPIView):
     serializer_class = ProductListSerializer
     permission_classes = [AllowAny]
+    pagination_class = CustomPagination  # Use your custom pagination class
 
     @extend_schema(
         responses={200: ProductListSerializer(many=True)},
         description="Retrieve the latest products from each category for the homepage."
     )
     def get_queryset(self):
-        clothes = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')[:8]
-        shoes = Product.objects.filter(product_type='SHOES').order_by('-created_at')[:8]
-        accessories = Product.objects.filter(product_type='ACCESSORIES').order_by('-created_at')[:8]
-        return chain(clothes,shoes,accessories)
-    
+        user = self.request.user
+        if user.is_authenticated:
+            try:
+                order_items = OrderItem.objects.filter(order__user=user).order_by('-order__created_at')[:10]
+                similar_products = SimilarProduct.objects.none() 
+                recommended_products = Recommendation.objects.none()  
+                
+                for order_item in order_items:
+                    similar_products |= SimilarProduct.objects.filter(product=order_item.product)  
+
+                recommended_products = Recommendation.objects.filter(user=user)
+                all_products = similar_products | recommended_products  
+
+                if not all_products.exists():  
+                    all_products = Product.objects.none()
+
+            except OrderItem.DoesNotExist:
+                all_products = Product.objects.none()
+
+        else:
+            all_products = Product.objects.none()  
+
+        if not all_products.exists():
+            clothes = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')[:8]
+            shoes = Product.objects.filter(product_type='SHOES').order_by('-created_at')[:8]
+            accessories = Product.objects.filter(product_type='ACCESSORIES').order_by('-created_at')[:8]
+            all_products = chain(clothes, shoes, accessories)  
+
+        return all_products
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        # If pagination is not required (fallback)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class CategoryProductsListView(generics.ListAPIView):
@@ -99,10 +141,6 @@ class CategoryProductsListView(generics.ListAPIView):
         return chain(clothes, shoes, accessories) 
 
 
-class CustomPagination(PageNumberPagination):
-    page_size = 32
-    page_size_query_param = 'page_size'  
-    max_page_size = 100  
 
 
 class ClothesListView(generics.ListAPIView):
