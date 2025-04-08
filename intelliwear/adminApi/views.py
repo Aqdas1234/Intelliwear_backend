@@ -18,9 +18,12 @@ from customerApi.serializers import OrderSerializer
 from customerApi.models import Order, ReturnRequest , Review
 from django.template.loader import render_to_string
 from django.core.mail import send_mail
+from recommendation.logic.singleton import get_cb_model,get_cf_model
+
 from django.db.models import Count, Sum, Case, When, IntegerField, FloatField
 from django.utils.timezone import now
 from datetime import timedelta
+
 
 #from .models import Product,Size,Color,Media
 User = get_user_model() 
@@ -190,6 +193,38 @@ class ProductViewSet(viewsets.ModelViewSet):
         if size:
             queryset = queryset.filter(sizes__size=size)  
         return queryset
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        
+        # Convert instance to DataFrame format required by addProducts
+        import pandas as pd
+        
+        data = {
+            'ProductID': [instance.id],
+            'ProductName': [instance.name],
+            'Description': [instance.description],
+            'Price': [instance.price],
+            'Type': [instance.product_type],
+            'Gender': [instance.gender],
+            'Status': ['active'],
+        }
+        df = pd.DataFrame(data)
+        cb_model = get_cb_model()
+        if cb_model is not None:
+            cb_model.addProducts(df)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        product_id = instance.id
+        cb_model = get_cb_model()
+        if cb_model is not None:
+            cb_model.delete(product_id)
+        cf_model = get_cf_model()
+        if cf_model is not None:
+            cf_model.delete_product(product_id)
+        return super().destroy(request, *args, **kwargs)
+
 
 @extend_schema(tags=["Carousel"])
 class CarouselViewSet(viewsets.ModelViewSet):

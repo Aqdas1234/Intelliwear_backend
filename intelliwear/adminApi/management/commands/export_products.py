@@ -8,23 +8,24 @@ class Command(BaseCommand):
     help = "Export all products to a CSV file"
 
     def handle(self, *args, **kwargs):
-        file_path = os.path.join(settings.BASE_DIR, 'products.csv')
+        file_path = os.path.join(settings.BASE_DIR, 'recommendation/data/products.csv')
 
         with open(file_path, 'w', newline='', encoding='utf-8') as file:
             writer = csv.writer(file)
-            writer.writerow(['ID', 'Name', 'Description', 'Price', 'Type', 'Gender', 'Status'])
+            writer.writerow(['ProductID', 'ProductName', 'Description','ProductBrand', 'Price (INR)', 'Type', 'Gender', 'Status'])
 
-            # Sare products fetch karein
+           
             products = Product.objects.all()
             for product in products:
                 writer.writerow([
                     product.id,
                     product.name,
                     product.description,
+                    '',
                     product.price,
                     product.get_product_type_display(),
                     product.get_gender_display(),
-                    'Active'  
+                    'active'  
                 ])
 
         self.stdout.write(self.style.SUCCESS(f'Successfully exported {products.count()} products to {file_path}'))
