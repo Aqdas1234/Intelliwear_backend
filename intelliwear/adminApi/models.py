@@ -70,6 +70,10 @@ class Product(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     sold_out = models.PositiveIntegerField(default=0) 
 
+    def update_sold_out(self, quantity):
+        self.sold_out += quantity
+        self.save()
+
     def clean(self):
         """Custom validation for required image field"""
         if not self.image:

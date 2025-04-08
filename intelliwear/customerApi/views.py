@@ -1,7 +1,8 @@
 from itertools import chain
+from django.utils.timezone import now
 import json
 import stripe
-from django.db.models import Q
+from django.db.models import Q,Sum
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import transaction
@@ -74,7 +75,7 @@ class CustomPagination(PageNumberPagination):
 class HomePageProductsView(generics.ListAPIView):
     serializer_class = ProductListSerializer
     permission_classes = [AllowAny]
-    pagination_class = CustomPagination  # Use your custom pagination class
+    pagination_class = CustomPagination  
 
     @extend_schema(
         responses={200: ProductListSerializer(many=True)},
@@ -104,10 +105,27 @@ class HomePageProductsView(generics.ListAPIView):
             all_products = Product.objects.none()  
 
         if not all_products.exists():
-            clothes = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')[:8]
-            shoes = Product.objects.filter(product_type='SHOES').order_by('-created_at')[:8]
-            accessories = Product.objects.filter(product_type='ACCESSORIES').order_by('-created_at')[:8]
-            all_products = chain(clothes, shoes, accessories)  
+            clothes = Product.objects.annotate(
+                total_quantity=Sum('sizes__quantity')
+            ).filter(
+                product_type='CLOTHES',
+                total_quantity__gt=0
+            ).order_by('-created_at')[:8]
+
+            shoes = Product.objects.annotate(
+                total_quantity=Sum('sizes__quantity')
+            ).filter(
+                product_type='SHOES',
+                total_quantity__gt=0
+            ).order_by('-created_at')[:8]
+            accessories = Product.objects.annotate(
+                total_quantity=Sum('sizes__quantity')
+            ).filter(
+                product_type='ACCESSORIES',
+                total_quantity__gt=0
+            ).order_by('-created_at')[:8]
+
+            all_products = chain(clothes, shoes, accessories)
 
         return all_products
 
@@ -133,12 +151,18 @@ class CategoryProductsListView(generics.ListAPIView):
     )
     def get_queryset(self):
         gender = self.kwargs['gender'].upper()
-        filter_condition = Q(gender=gender) | Q(gender="ALL")
-        clothes = Product.objects.filter(filter_condition, product_type="CLOTHES")[:8]
-        shoes = Product.objects.filter(filter_condition, product_type="SHOES")[:8]
-        accessories = Product.objects.filter(filter_condition, product_type="ACCESSORIES")[:8]
+        filter_condition = Q(gender=gender) | Q(gender="A")
 
-        return chain(clothes, shoes, accessories) 
+        clothes = Product.objects.filter(filter_condition, product_type="CLOTHES")\
+            .annotate(total_quantity=Sum('sizes__quantity')).filter(total_quantity__gt=0)[:8]
+
+        shoes = Product.objects.filter(filter_condition, product_type="SHOES")\
+            .annotate(total_quantity=Sum('sizes__quantity')).filter(total_quantity__gt=0)[:8]
+
+        accessories = Product.objects.filter(filter_condition, product_type="ACCESSORIES")\
+            .annotate(total_quantity=Sum('sizes__quantity')).filter(total_quantity__gt=0)[:8]
+
+        return chain(clothes, shoes, accessories)
 
 
 
@@ -149,7 +173,7 @@ class ClothesListView(generics.ListAPIView):
     pagination_class = CustomPagination
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['gender']
+    #filterset_fields = ['gender']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
@@ -158,12 +182,15 @@ class ClothesListView(generics.ListAPIView):
         description="Retrieve a paginated list of clothes products with filtering options."
     )
     def get_queryset(self):
-        queryset = Product.objects.filter(product_type='CLOTHES').order_by('-created_at')
+        queryset = Product.objects.filter(product_type='CLOTHES')\
+            .annotate(total_quantity=Sum('sizes__quantity')).filter(total_quantity__gt=0)\
+            .order_by('-created_at')
+
         gender = self.request.query_params.get('gender', None)
         if gender:
-            filter_condition = Q(gender=gender.upper()) | Q(gender="ALL")
-            queryset = queryset.filter(filter_condition)
-        return queryset
+            gender = gender.upper()  
+            queryset = queryset.filter(Q(gender=gender) | Q(gender="A"))
+        return queryset      
 
 class ShoesListView(generics.ListAPIView):
     serializer_class = ProductListSerializer
@@ -171,7 +198,7 @@ class ShoesListView(generics.ListAPIView):
     pagination_class = CustomPagination
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['gender']
+    #filterset_fields = ['gender']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
@@ -180,10 +207,13 @@ class ShoesListView(generics.ListAPIView):
         description="Retrieve a paginated list of shoe products with filtering options."
     )
     def get_queryset(self):
-        queryset = Product.objects.filter(product_type='SHOES').order_by('-created_at')
+        queryset = Product.objects.filter(product_type='SHOES')\
+            .annotate(total_quantity=Sum('sizes__quantity')).filter(total_quantity__gt=0)\
+            .order_by('-created_at')
+
         gender = self.request.query_params.get('gender', None)
         if gender:
-            filter_condition = Q(gender=gender.upper()) | Q(gender="ALL")
+            filter_condition = Q(gender=gender.upper()) | Q(gender="A")
             queryset = queryset.filter(filter_condition)
         return queryset
 
@@ -194,7 +224,7 @@ class AccessoriesListView(generics.ListAPIView):
     pagination_class = CustomPagination
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['gender']
+    #filterset_fields = ['gender']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
@@ -203,13 +233,15 @@ class AccessoriesListView(generics.ListAPIView):
         description="Retrieve a paginated list of accessories products with filtering options."
     )
     def get_queryset(self):
-        queryset = Product.objects.filter(product_type='ACCESSORIES').order_by('-created_at')
+        queryset = Product.objects.filter(product_type='ACCESSORIES')\
+            .annotate(total_quantity=Sum('sizes__quantity')).filter(total_quantity__gt=0)\
+            .order_by('-created_at')
+
         gender = self.request.query_params.get('gender', None)
         if gender:
-            filter_condition = Q(gender=gender.upper()) | Q(gender="ALL")
+            filter_condition = Q(gender=gender.upper()) | Q(gender="A")
             queryset = queryset.filter(filter_condition)
         return queryset
-
 
 
 '''
@@ -613,15 +645,18 @@ class ProductDetailView(APIView):
 class CreateReviewView(APIView):
     permission_classes = [IsCustomerUser]
 
-    def post(self, request, product_id):
+    def post(self, request):
+        product_id = request.query_params.get("product_id")  
+        if not product_id:
+            return Response({"error": "Product ID is required as a query parameter."}, status=400)
         product = get_object_or_404(Product, id=product_id)
         user = request.user
-        # Prevent duplicate reviews
         if Review.objects.filter(product=product, user=user).exists():
             return Response({"error": "You have already reviewed this product."}, status=400)
+
         serializer = ReviewSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(user=user, product=product)
+            serializer.save(user=user, product=product)  
             return Response(serializer.data, status=201)
 
         return Response(serializer.errors, status=400)
@@ -663,8 +698,8 @@ class PlaceOrderViewStripe(APIView):
                         "quantity": 1,
                     }],
                     mode="payment",
-                    success_url=f"{settings.FRONTEND_URL}/myorders/",
-                    cancel_url=f"{settings.FRONTEND_URL}/checkout/",
+                    success_url=f"{settings.FRONTEND_URL}/myorders/?source=stripe",
+                    cancel_url=f"{settings.FRONTEND_URL}/checkout/?source=stripe",
                     metadata={
                         "user_id": str(request.user.id), 
                         "cart_data": json.dumps(checkout_data), 
@@ -688,7 +723,8 @@ class PlaceOrderViewStripe(APIView):
         order = Order.objects.create(
             user=user, 
             total_price=total_price, 
-            status="in_process" if payment_status == "Completed" else "pending"
+            status="in_process" if payment_status == "Completed" else "pending",
+            status_updated_at=now() 
         )
         order_items = []
 
@@ -710,6 +746,9 @@ class PlaceOrderViewStripe(APIView):
 
             size.quantity -= item["quantity"]
             size.save()
+
+            product.update_sold_out(item["quantity"])
+
 
         # Use the shipping_info dictionary directly
         ShippingAddress.objects.create(
