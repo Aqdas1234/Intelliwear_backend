@@ -11,7 +11,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         output_folder = 'recommendation/data/'
-        output_file = os.path.join(output_folder, 'cf_data.csv')
+        output_file = os.path.join(output_folder, 'data.csv')
 
         os.makedirs(output_folder, exist_ok=True)
 

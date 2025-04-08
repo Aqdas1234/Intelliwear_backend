@@ -75,60 +75,67 @@ class CustomPagination(PageNumberPagination):
 class HomePageProductsView(generics.ListAPIView):
     serializer_class = ProductListSerializer
     permission_classes = [AllowAny]
-    pagination_class = CustomPagination  
+    #pagination_class = CustomPagination  
 
     @extend_schema(
         responses={200: ProductListSerializer(many=True)},
         description="Retrieve the latest products from each category for the homepage."
     )
     def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated:
-            try:
-                order_items = OrderItem.objects.filter(order__user=user).order_by('-order__created_at')[:10]
-                similar_products = SimilarProduct.objects.none() 
-                recommended_products = Recommendation.objects.none()  
-                
-                for order_item in order_items:
-                    similar_products |= SimilarProduct.objects.filter(product=order_item.product)  
-
-                recommended_products = Recommendation.objects.filter(user=user)
-                all_products = similar_products | recommended_products  
-
-                if not all_products.exists():  
-                    all_products = Product.objects.none()
-
-            except OrderItem.DoesNotExist:
-                all_products = Product.objects.none()
-
-        else:
-            all_products = Product.objects.none()  
-
-        if not all_products.exists():
-            clothes = Product.objects.annotate(
+        clothes = Product.objects.annotate(
                 total_quantity=Sum('sizes__quantity')
             ).filter(
                 product_type='CLOTHES',
                 total_quantity__gt=0
             ).order_by('-created_at')[:8]
 
-            shoes = Product.objects.annotate(
+        shoes = Product.objects.annotate(
                 total_quantity=Sum('sizes__quantity')
             ).filter(
                 product_type='SHOES',
                 total_quantity__gt=0
             ).order_by('-created_at')[:8]
-            accessories = Product.objects.annotate(
+
+        accessories = Product.objects.annotate(
                 total_quantity=Sum('sizes__quantity')
             ).filter(
                 product_type='ACCESSORIES',
                 total_quantity__gt=0
             ).order_by('-created_at')[:8]
 
-            all_products = chain(clothes, shoes, accessories)
+        all_products = list(chain(clothes, shoes, accessories))
+        '''
+        user = self.request.user
+        all_products = Product.objects.none()  # Default to empty queryset
+
+        if user.is_authenticated and user.orders.exists():  # Check if user has at least one order
+            # Get the most recent 10 order items of the user
+            order_items = OrderItem.objects.filter(order__user=user).order_by('-order__created_at')[:10]
+            
+            # Fetch similar products based on the products in the order
+            similar_product_ids = SimilarProduct.objects.filter(
+                product__in=[order_item.product.id for order_item in order_items]
+            ).values_list('similar_product', flat=True)  # Get the IDs of similar products
+            
+            # Get the recommended products for the user
+            recommended_product_ids = Recommendation.objects.filter(user=user).values_list('product', flat=True)
+            
+            # Combine the product IDs (similar and recommended) and remove duplicates
+            all_product_ids = set(similar_product_ids) | set(recommended_product_ids)
+            
+            # Fetch the actual products based on these combined IDs and order them
+            all_products = Product.objects.filter(id__in=all_product_ids).order_by('-created_at')
+
+            if not all_products.exists():
+                all_products = Product.objects.none()
+
+        # If the user is not authenticated or has not made any orders, fallback to default categories
+        if not user.is_authenticated or not user.orders.exists() or not all_products.exists():
+        '''
+            
 
         return all_products
-
+'''
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
@@ -139,6 +146,7 @@ class HomePageProductsView(generics.ListAPIView):
         # If pagination is not required (fallback)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+'''
 
 
 class CategoryProductsListView(generics.ListAPIView):
