@@ -1,5 +1,5 @@
 from recommendation.logic.recommendation import CBModel
-from intelliwear.recommendation.logic.CF import CFModel
+from recommendation.logic.CF import CFModel
 
 _cb_instance = None
 _cf_instance = None  
