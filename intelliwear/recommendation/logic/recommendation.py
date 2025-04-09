@@ -250,7 +250,7 @@ class CBModel:
     def addProducts(self,data):
       data['combined_text'] = data.apply(self.combine_attributes, axis=1)
       cleaned_products = [self.preprocess(prod) for prod in data['combined_text']]
-      tokenized_products = [self.word_tokenize(prod) for prod in cleaned_products]
+      tokenized_products = [word_tokenize(prod) for prod in cleaned_products]
 
       self.updateIdf(cleaned_products)
       self.updateWord2vecModel(tokenized_products)

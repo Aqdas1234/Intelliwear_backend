@@ -17,9 +17,9 @@ class Command(BaseCommand):
 
             if row_count >= 10:
                 get_cf_model()
-                self.stdout.write(self.style.SUCCESS('CFModel loaded (20+ entries in cf_data.csv)'))
+                self.stdout.write(self.style.SUCCESS('CFModel loaded (10+ entries in cf_data.csv)'))
             else:
-                self.stdout.write(self.style.WARNING('CFModel NOT loaded (less than 20 entries in cf_data.csv)'))
+                self.stdout.write(self.style.WARNING('CFModel NOT loaded (less than 10 entries in cf_data.csv)'))
         else:
             self.stdout.write(self.style.ERROR('cf_data.csv not found'))
 

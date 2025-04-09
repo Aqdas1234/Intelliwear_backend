@@ -1,6 +1,8 @@
 from celery import shared_task
+import threading
+index_lock = threading.Lock()
 from django.core.management import call_command
-from recommendation.logic.singleton import get_cf_model,get_cb_model
+from recommendation.logic.singleton import get_cf_model,get_cb_model,get_image_search_model
 
 @shared_task
 def generate_similar_products_task():
@@ -20,5 +22,14 @@ def train_cb_model_task():
     cb_model = get_cb_model()  
     if cb_model is not None:
         cb_model.train()  
+    else:
+        print("Error: CB model is None. Training cannot proceed.")
+
+@shared_task
+def cleanIndex_task():
+    img_model = get_image_search_model()  
+    if img_model is not None:
+        with index_lock:  
+            img_model.cleanIndex()
     else:
         print("Error: CB model is None. Training cannot proceed.")

@@ -12,6 +12,7 @@ import pandas as pd
 import pickle
 from lightfm import LightFM
 from lightfm.data import Dataset
+from filelock import FileLock
 
 class CFModel:
     def __init__(self, directory):
@@ -19,6 +20,7 @@ class CFModel:
         self.mappingsPath = directory + '/mappings.pkl'
         self.csvPath = directory + '/data.csv'
         self.deleted_path = directory + '/deleted.pkl'
+        self.lockPath = directory + '/model_lock.lock'
 
         self.model = None
         self.buyer_mapping = {}
@@ -26,7 +28,7 @@ class CFModel:
         self.reverse_buyer_mapping = {}
         self.reverse_product_mapping = {}
         self.deleted_products = set()
-
+        self.lock = FileLock(self.lockPath)
         if self.is_trained():
             print("Model is pretrained")
             self.model, self.buyer_mapping, self.product_mapping, self.reverse_buyer_mapping, self.reverse_product_mapping = self.get_model()
@@ -146,21 +148,23 @@ class CFModel:
 
 
     def add_interaction(self, buyer_id, product_id, weight=1.0):
-        self.updateMappings(buyer_id, product_id)
-        df = self.get_csv()
-        new_data = pd.DataFrame({'buyer': [buyer_id], 'product': [product_id], 'weight': [weight]})
-        df = pd.concat([df, new_data], ignore_index=True)
-        self.save_csv(df)
+        with self.lock:
+            self.updateMappings(buyer_id, product_id)
+            df = self.get_csv()
+            new_data = pd.DataFrame({'buyer': [buyer_id], 'product': [product_id], 'weight': [weight]})
+            df = pd.concat([df, new_data], ignore_index=True)
+            self.save_csv(df)
 
-        self.fit_partial(new_data)
+            self.fit_partial(new_data)
 
     def delete_product(self, product_id):
-        df = self.get_csv()
-        df = df[df["product"] != product_id]
-        self.save_csv(df)
+        with self.lock:
+            df = self.get_csv()
+            df = df[df["product"] != product_id]
+            self.save_csv(df)
 
-        self.deleted_products.add(product_id)
-        self.save_deleted_products()
+            self.deleted_products.add(product_id)
+            self.save_deleted_products()
 
 #m = CFModel('D:/intelliwear_backend/intelliwear/recommendation/logic2')
 #print(m)

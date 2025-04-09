@@ -1,5 +1,8 @@
 from itertools import chain
 from django.utils.timezone import now
+from PIL import Image
+from django.utils.functional import cached_property
+from recommendation.logic.ImgSearch import SearchModel
 import json
 import stripe
 from django.db.models import Q,Sum
@@ -25,7 +28,7 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.pagination import PageNumberPagination
 from recommendation.models import SimilarProduct,Recommendation
-
+from rest_framework.parsers import MultiPartParser, FormParser
 
 class IsCustomerUser(BasePermission):
     def has_permission(self, request, view):
@@ -931,3 +934,24 @@ class CustomerReturnRequestView(generics.ListCreateAPIView):
             serializer.save(user=self.request.user , quantity=return_quantity)
         order_item.return_status = "Pending"
         order_item.save()
+
+
+
+class SearchImageView(APIView):
+    permission_classes = [AllowAny]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, *args, **kwargs):
+        image_file = request.FILES.get('image', None)
+        if not image_file:
+            return Response({"error": "No image file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        img = Image.open(image_file)
+
+        search_model = SearchModel(directory='recommendation/imageSearchData')
+        result_ids = search_model.search(img, 20)  
+
+        products = Product.objects.filter(id__in=result_ids)
+        serializer_data = ProductListSerializer(products, many=True)
+
+        return Response({"products": serializer_data.data}, status=status.HTTP_200_OK)

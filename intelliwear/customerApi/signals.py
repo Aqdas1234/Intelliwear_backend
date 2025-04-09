@@ -5,7 +5,7 @@ from recommendation.logic.singleton import get_cf_model
 from adminApi.models import Product
 from recommendation.models import Recommendation 
 
-
+'''
 @receiver(post_save, sender=Cart)
 def cart_item_added(sender, instance, created, **kwargs):
     if created:
@@ -50,3 +50,4 @@ def order_item_added(sender, instance, created, **kwargs):
         else:
             print("Error: Collaborative filtering model (cf_model) is None")
       
+'''
