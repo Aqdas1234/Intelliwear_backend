@@ -10,7 +10,7 @@ from recommendation.models import Recommendation
 def cart_item_added(sender, instance, created, **kwargs):
     if created:
         user = instance.user
-        product_id = instance.product.id  
+        product_id = str(instance.product.id )
         weight = 0.5  
         has_order = OrderItem.objects.filter(order__user=user).exists()
         if has_order:
@@ -34,7 +34,7 @@ def cart_item_added(sender, instance, created, **kwargs):
 def order_item_added(sender, instance, created, **kwargs):
     if created:
         user = instance.cart.user
-        product_id = instance.product.id 
+        product_id = str(instance.product.id)
         weight = 1.0  
         cf_model = get_cf_model()
         if cf_model is not None:

@@ -334,7 +334,8 @@ class AddToCartView(APIView):
                 cart_item, created = Cart.objects.get_or_create(user=request.user, product=product, size=size)
 
                 if created:
-                    cart_item.quantity = quantity  
+                    cart_item.quantity = quantity 
+                    
                 else:
                     new_quantity = cart_item.quantity + quantity  
                     if new_quantity > size.quantity:

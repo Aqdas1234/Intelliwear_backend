@@ -1,5 +1,7 @@
 from django.shortcuts import render
 from django.conf import settings
+import pandas as pd
+from recommendation.logic.recommendation import CBModel
 #from django.contrib.auth.models import User
 from rest_framework import viewsets, status , filters,generics
 from customerApi.serializers import ReturnRequestSerializer, UserSerializer , ReviewSerializer
@@ -18,7 +20,7 @@ from customerApi.serializers import OrderSerializer
 from customerApi.models import Order, ReturnRequest , Review
 from django.template.loader import render_to_string
 from django.core.mail import send_mail
-from recommendation.logic.singleton import get_cb_model,get_cf_model
+from recommendation.logic.singleton import get_cb_model,get_cf_model,get_image_search_model
 
 from django.db.models import Count, Sum, Case, When, IntegerField, FloatField
 from django.utils.timezone import now
@@ -198,10 +200,9 @@ class ProductViewSet(viewsets.ModelViewSet):
         instance = serializer.save()
         
         # Convert instance to DataFrame format required by addProducts
-        import pandas as pd
         
         data = {
-            'ProductID': [instance.id],
+            'ProductID': [str(instance.id)],
             'ProductName': [instance.name],
             'Description': [instance.description],
             'ProductBrand':[''],
@@ -214,16 +215,24 @@ class ProductViewSet(viewsets.ModelViewSet):
         cb_model = get_cb_model()
         if cb_model is not None:
             cb_model.addProducts(df)
+        img_model = get_image_search_model()
+        if img_model is not None:
+            image_url = 'https://res.cloudinary.com/doz6xoqzu/'
+            image_url += instance.image.public_id  
+            img_model.addProduct(str(instance.id), image_url)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        product_id = instance.id
-        cb_model = get_cb_model()
+        product_id = str(instance.id)
+        cb_model = CBModel(directory='recommendation/data')
         if cb_model is not None:
             cb_model.delete(product_id)
-        cf_model = get_cf_model()
-        if cf_model is not None:
-            cf_model.delete_product(product_id)
+        img_model = get_image_search_model()
+        if img_model is not None:
+            img_model.deleteProduct(str(instance.id))
+        #cf_model = get_cf_model()
+        #if cf_model is not None:
+        #    cf_model.delete_product(product_id)
         return super().destroy(request, *args, **kwargs)
 
 

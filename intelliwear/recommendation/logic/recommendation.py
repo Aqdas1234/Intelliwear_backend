@@ -68,9 +68,10 @@ class CBModel:
     def saveMappings(self,mappings):
       joblib.dump(mappings, self.mappingsPath)
 
-    def updateMappings(self,products):
-      new_mapping = {product: idx for idx, product in enumerate(products["ProductID"].unique() , start = len(self.product_mapping.values()))}
-      self.product_mapping.update(new_mapping)
+    def updateMappings(self, products):
+      for product_id in products["ProductID"].unique():
+          if product_id not in self.product_mapping:
+              self.product_mapping[product_id] = len(self.product_mapping)
       self.saveMappings(self.product_mapping)
 
     def getVectors(self):
@@ -241,27 +242,29 @@ class CBModel:
 
       return result
 
-    def delete(self,id):
-      df = self.getCsvFile()
-      df.loc[self.product_mapping[id], "Status"] = "inactive"
-      self.saveCsvFile(df)
-      self.train_data.loc[self.product_mapping[id], "Status"] = "inactive"
+    def addProducts(self, data):
+        data['combined_text'] = data.apply(self.combine_attributes, axis=1)
 
-    def addProducts(self,data):
-      data['combined_text'] = data.apply(self.combine_attributes, axis=1)
-      cleaned_products = [self.preprocess(prod) for prod in data['combined_text']]
-      tokenized_products = [word_tokenize(prod) for prod in cleaned_products]
+        cleaned_products = [self.preprocess(prod) for prod in data['combined_text']]
+        tokenized_products = [word_tokenize(prod) for prod in cleaned_products]
 
-      self.updateIdf(cleaned_products)
-      self.updateWord2vecModel(tokenized_products)
-      vectors = [self.get_weighted_vector(prod) for prod in cleaned_products]
-      self.updateVectors(vectors)
-      self.updateFaissIndex(vectors)
-      self.updateData(data)
-      self.updateMappings(data)
+        self.updateIdf(cleaned_products)
+        self.updateWord2vecModel(tokenized_products)
+        vectors = [self.get_weighted_vector(prod) for prod in cleaned_products]
+        self.updateVectors(vectors)
+        self.updateFaissIndex(vectors)
+        data = data.drop(columns=['combined_text'])
+        self.updateData(data)
+        self.updateMappings(data)
+
+    def delete(self, id):
+        df = self.getCsvFile()
+        df.loc[self.product_mapping[id], "Status"] = "inactive"
+        self.saveCsvFile(df)
+        self.train_data.loc[self.product_mapping[id], "Status"] = "inactive"
 
 
-
-
-#path = 'intelliwear\recommendation\data'
+#path = 'intelliwear/recommendation/data'
 #m = CBModel(path)
+#m.delete('795d0053-bdc7-4a2a-a118-fcc0337a1c32')
+#print(m.product_mapping)
