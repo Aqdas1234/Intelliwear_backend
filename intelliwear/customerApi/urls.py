@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import AccessoriesListView, CancelOrderViewStripe, ClothesListView, CreateReviewView, CustomerProfileView,CategoryProductsListView, CustomerReturnRequestView, HomePageProductsView, PlaceOrderViewStripe,ProductDetailView,AddToCartView,OrderListView,GoToCheckoutView, RemoveFromCartView, SearchImageView, ShoesListView, StripeWebhookView, UpdateCartView, paymentFailView
+from .views import AccessoriesListView, CancelOrderViewStripe, ClothesListView, CreateReviewView, CustomerProfileView,CategoryProductsListView, CustomerReturnRequestView, HomePageProductsView, PlaceOrderViewStripe,ProductDetailView,AddToCartView,OrderListView,GoToCheckoutView, RemoveFromCartView, SearchImageView, ShoesListView, StripeWebhookView, UpdateCartView, nlpSearchView, paymentFailView
 
 urlpatterns = [
     #path('register/', CustomerRegisterView.as_view(), name='customer-register'),
@@ -26,5 +26,6 @@ urlpatterns = [
     path('giveReview/',CreateReviewView.as_view(),name="give-review"),
     path("return-requests/", CustomerReturnRequestView.as_view(), name="customer-return-request"),
     path("imageSearch/", SearchImageView.as_view(), name="image-search"),
+    path("nlpSearch/", nlpSearchView.as_view(), name="nlp-search"),
 
 ]
