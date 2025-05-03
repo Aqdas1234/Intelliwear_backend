@@ -2,6 +2,7 @@ from itertools import chain
 from django.utils.timezone import now
 from PIL import Image
 from django.utils.functional import cached_property
+from recommendation.logic.singleton import get_cf_model, get_nlp_model,get_image_search_model
 from recommendation.logic.ImgSearch import SearchModel
 import json
 import stripe
@@ -346,6 +347,29 @@ class AddToCartView(APIView):
                     cart_item.quantity = new_quantity
                 
                 cart_item.save()
+                
+                user = request.user
+                has_order = OrderItem.objects.filter(order__user=user).exists()
+                if has_order:
+                    cf_model = get_cf_model()
+                    if cf_model is not None:
+                        cf_model.add_interaction(buyer_id=user.id, product_id=str(product.id), weight=0.5)
+                        recommended_ids = cf_model.get_recommendations(user_id=user.id, num_recommendations=30)
+                        existing_ids = Recommendation.objects.filter(user=user, product_id__in=recommended_ids).values_list('product_id', flat=True)
+                        new_ids = set(recommended_ids) - set(existing_ids)
+
+                        new_recommendations = []
+                        for pid in new_ids:
+                            try:
+                                product_obj = Product.objects.get(id=pid)
+                                new_recommendations.append(Recommendation(user=user, product=product_obj))
+                            except Product.DoesNotExist:
+                                print(f"Warning: Product with ID {pid} does not exist. Skipping.")
+
+                        Recommendation.objects.bulk_create(new_recommendations)
+                    else:
+                        print("Error: Collaborative filtering model (cf_model) is None")
+
 
         except Size.DoesNotExist:
             return Response({"error": "Invalid size selection."}, status=status.HTTP_400_BAD_REQUEST)
@@ -727,62 +751,90 @@ class PlaceOrderViewStripe(APIView):
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def create_order(self, user, checkout_data, total_price, payment_method, payment_status, shipping_info, transaction_id=None):
-        order = Order.objects.create(
-            user=user, 
-            total_price=total_price, 
-            status="in_process" if payment_status == "Completed" else "pending",
-            status_updated_at=now() 
-        )
-        order_items = []
+        with transaction.atomic():
+            order = Order.objects.create(
+                user=user, 
+                total_price=total_price, 
+                status="in_process" if payment_status == "Completed" else "pending",
+                status_updated_at=now() 
+            )
+            order_items = []
+            interaction_product_ids = []
+            for item in checkout_data:
+                product = Product.objects.get(id=item["product_id"])
+                size = Size.objects.get(size=item["size"], product=product)
 
-        for item in checkout_data:
-            product = Product.objects.get(id=item["product_id"])
-            size = Size.objects.get(size=item["size"], product=product)
+                if size.quantity < item["quantity"]:
+                    raise ValueError(f"Only {size.quantity} items available in stock for '{product.name}' (Size: {size.size}).")
 
-            if size.quantity < item["quantity"]:
-                raise ValueError(f"Only {size.quantity} items available in stock for '{product.name}' (Size: {size.size}).")
+                # Create OrderItem one by one
+                order_item= OrderItem.objects.create(
+                    order=order,
+                    product=product,
+                    size=size,
+                    quantity=item["quantity"],
+                    price=Decimal(item["price"])
+                )
+                order_items.append(order_item)
+                interaction_product_ids.append(str(product.id))
+                size.quantity -= item["quantity"]
+                size.save()
 
-            # Create OrderItem one by one
-            OrderItem.objects.create(
+                product.update_sold_out(item["quantity"])
+
+
+            # Use the shipping_info dictionary directly
+            ShippingAddress.objects.create(
+                user=user,
                 order=order,
-                product=product,
-                size=size,
-                quantity=item["quantity"],
-                price=Decimal(item["price"])
+                name=shipping_info.get("name", user.name),
+                city=shipping_info.get("city", ""),
+                address=shipping_info.get("address", ""),
+                phone=shipping_info.get("phone", "")
             )
 
-            size.quantity -= item["quantity"]
-            size.save()
+            Payment.objects.create(
+                user=user, 
+                order=order,
+                payment_method=payment_method, 
+                transaction_id=transaction_id or str(uuid.uuid4()),
+                payment_status=payment_status
+            )
 
-            product.update_sold_out(item["quantity"])
+            ordered_items = order.items.values_list("product_id", "size_id")
+            Cart.objects.filter(
+                user=user, 
+                product_id__in=[item[0] for item in ordered_items], 
+                size_id__in=[item[1] for item in ordered_items]
+            ).delete()
 
+            cf_model = get_cf_model()
+            if cf_model is not None:
+                for pid in interaction_product_ids:
+                    cf_model.add_interaction(buyer_id=user.id, product_id=pid, weight=1.0)
 
-        # Use the shipping_info dictionary directly
-        ShippingAddress.objects.create(
-            user=user,
-            order=order,
-            name=shipping_info.get("name", user.name),
-            city=shipping_info.get("city", ""),
-            address=shipping_info.get("address", ""),
-            phone=shipping_info.get("phone", "")
-        )
+                recommended_ids = cf_model.get_recommendations(user_id=user.id, num_recommendations=30)
 
-        Payment.objects.create(
-            user=user, 
-            order=order,
-            payment_method=payment_method, 
-            transaction_id=transaction_id or str(uuid.uuid4()),
-            payment_status=payment_status
-        )
+                # Avoid creating duplicates
+                existing_ids = set(
+                    Recommendation.objects.filter(user=user, product_id__in=recommended_ids)
+                    .values_list("product_id", flat=True)
+                )
+                new_ids = set(recommended_ids) - existing_ids
 
-        ordered_items = order.items.values_list("product_id", "size_id")
-        Cart.objects.filter(
-            user=user, 
-            product_id__in=[item[0] for item in ordered_items], 
-            size_id__in=[item[1] for item in ordered_items]
-        ).delete()
+                product_map = {
+                    str(p.id): p for p in Product.objects.filter(id__in=new_ids)
+                }
 
-        return order
+                new_recommendations = [
+                    Recommendation(user=user, product=product_map[str(pid)])
+                    for pid in new_ids if str(pid) in product_map
+                ]
+
+                Recommendation.objects.bulk_create(new_recommendations)
+            else:
+                print("Error: Collaborative filtering model (cf_model) is None")
+            return order
 
 
 class paymentFailView(APIView):
@@ -949,8 +1001,25 @@ class SearchImageView(APIView):
 
         img = Image.open(image_file)
 
-        search_model = SearchModel(directory='recommendation/imageSearchData')
+        search_model = get_image_search_model()
         result_ids = search_model.search(img, 20)  
+
+        products = Product.objects.filter(id__in=result_ids)
+        serializer_data = ProductListSerializer(products, many=True)
+
+        return Response({"products": serializer_data.data}, status=status.HTTP_200_OK)
+
+
+class nlpSearchView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        query = str(request.data.get('query', None))
+        if not query:
+            return Response({"error": "No query provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        nlp_model = get_nlp_model() 
+        result_ids = nlp_model.search(query, k=20)
 
         products = Product.objects.filter(id__in=result_ids)
         serializer_data = ProductListSerializer(products, many=True)

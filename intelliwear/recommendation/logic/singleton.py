@@ -1,10 +1,13 @@
 from recommendation.logic.recommendation import CBModel
 from recommendation.logic.CF import CFModel
 from recommendation.logic.ImgSearch import SearchModel
+from recommendation.logic.NLP import NLP
 
 _cb_instance = None
 _cf_instance = None 
 _img_instance = None 
+_nlp_instance = None
+
 
 
 def get_cb_model():
@@ -35,3 +38,11 @@ def get_image_search_model():
         _img_instance = SearchModel(directory=path)
 
     return _img_instance
+
+
+def get_nlp_model():
+    global _nlp_instance
+    if _nlp_instance is None:
+        path = 'recommendation/nlpData'  
+        _nlp_instance = NLP(directory=path)
+    return _nlp_instance

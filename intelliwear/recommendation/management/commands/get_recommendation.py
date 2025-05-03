@@ -14,13 +14,15 @@ class Command(BaseCommand):
         cf = get_cf_model()
         users = User.objects.all()
 
-        for user in users:
-            recommended_ids = cf.get_recommendations(user_id=user.id, num_recommendations=30)
-            for pid in recommended_ids:
-                try:
-                    product = Product.objects.get(id=pid)
-                    Recommendation.objects.get_or_create(user=user, product=product)
-                except Product.DoesNotExist:
-                    self.stdout.write(self.style.WARNING(f"Product with ID {pid} does not exist. Skipping."))
+        if cf is not None:
+            for user in users:
+                recommended_ids = cf.get_recommendations(user_id=user.id, num_recommendations=30)
+                for pid in recommended_ids:
+                    try:
+                        product = Product.objects.get(id=pid)
+                        Recommendation.objects.get_or_create(user=user, product=product)
+                    except Product.DoesNotExist:
+                        self.stdout.write(self.style.WARNING(f"Product with ID {pid} does not exist. Skipping."))
 
-        self.stdout.write(self.style.SUCCESS("Recommendations generated successfully."))
+            self.stdout.write(self.style.SUCCESS("Recommendations generated successfully."))
+        
