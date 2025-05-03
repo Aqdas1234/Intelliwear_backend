@@ -9,8 +9,7 @@ __pycache__/
 venv/
 myenv/
 
-config.json
-secrets.json
+
 
 # Ignore database files
 *.sqlite3
