@@ -1,0 +1,16 @@
+<h2>New Order for Delivery</h2>
+<p>Order ID: {{ order_id }}</p>
+<p>User Name: {{ user_name }}</p>
+<p>Phone Number: {{ user_phone }}</p>
+<p>Email: {{ user_email }}</p>
+<p>Shipping Address: {{ shipping_address }}</p>
+<p>Payment Status: {{ payment_status }}</p>
+<h3>Order Details:</h3>
+<ul>
+    {% for item in order_items %}
+        <li>{{ item.product.name }} - Quantity: {{ item.quantity }}</li>
+    {% endfor %}
+</ul>
+<p>Total Price: ${{ total_price }}</p>
+
+<p>Thank you!</p>

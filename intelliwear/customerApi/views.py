@@ -884,6 +884,7 @@ class StripeWebhookView(APIView):
                         session["payment_intent"]
                     )
                     self.send_order_confirmation(order)
+                    self.send_delivery_notification(order)
             except User.DoesNotExist:
                 return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
@@ -910,6 +911,31 @@ class StripeWebhookView(APIView):
             fail_silently=False,
             html_message=email_content  
         )
+
+    def send_delivery_notification(self, order):
+        subject = f"New Order for Delivery - Order #{order.id}"
+        delivery_email = settings.DELIVERY_PARTNER_EMAIL  
+        email_content = render_to_string("emails/delivery_notification.html", {
+            "order_id": order.id,
+            "user_name": order.user.name,
+            "user_phone": order.user.phone,  
+            "user_email": order.user.email,
+            "shipping_address" : order.shippingaddress ,
+            "order_items" : order.items.all() ,
+            "total_price" : order.total_price  ,
+            "payment_status" : order.payment.payment_status 
+            
+        })
+
+        send_mail(
+            subject,
+            email_content,
+            settings.DEFAULT_FROM_EMAIL,
+            [delivery_email],
+            fail_silently=False,
+            html_message=email_content
+        )
+
 
 
 class CancelOrderViewStripe(APIView):

@@ -225,6 +225,7 @@ EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER 
 
+DELIVERY_PARTNER_EMAIL  = env("DELIVERY_PARTNER_EMAIL")
 #EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 #payment Info
