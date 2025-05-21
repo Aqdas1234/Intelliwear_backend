@@ -23,9 +23,9 @@ def get_cb_model():
 def get_cf_model():
     global _cf_instance
     if _cf_instance is None:
-        path = 'recommendation/data'
+        path = 'recommendation/data2/'
         _cf_instance = CFModel(directory=path)
-        #print(_cf_instance)
+        print(_cf_instance)
         #print("hellog")
     return _cf_instance
 

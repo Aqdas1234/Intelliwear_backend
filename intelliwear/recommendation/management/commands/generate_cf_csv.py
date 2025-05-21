@@ -10,7 +10,7 @@ class Command(BaseCommand):
     help = 'Generates cf_data.csv for collaborative filtering model'
 
     def handle(self, *args, **kwargs):
-        output_folder = 'recommendation/data/'
+        output_folder = 'recommendation/data2/'
         output_file = os.path.join(output_folder, 'data.csv')
 
         os.makedirs(output_folder, exist_ok=True)
@@ -22,10 +22,10 @@ class Command(BaseCommand):
             buyers_with_orders = set(OrderItem.objects.values_list('order__user_id', flat=True))
 
             for item in OrderItem.objects.select_related('order', 'product'):
-                writer.writerow([item.order.user.id, item.product.id, 1.0])
+                writer.writerow([item.order.user.id, str(item.product.id), 1.0])
 
             for item in Cart.objects.select_related('user', 'product'):
                 if item.user.id in buyers_with_orders:
-                    writer.writerow([item.user.id, item.product.id, 0.5])
+                    writer.writerow([item.user.id, str(item.product.id), 0.5])
 
         self.stdout.write(self.style.SUCCESS(f'cf_data.csv generated at {output_file}'))

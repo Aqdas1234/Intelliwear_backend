@@ -8,7 +8,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         get_cb_model()
+        get_cf_model()
         cf_data_path = 'recommendation/data/data.csv'
+        '''
         if os.path.exists(cf_data_path):
             with open(cf_data_path, mode='r') as csvfile:
                 reader = csv.reader(csvfile)
@@ -22,5 +24,5 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING('CFModel NOT loaded (less than 10 entries in cf_data.csv)'))
         else:
             self.stdout.write(self.style.ERROR('cf_data.csv not found'))
-
-        self.stdout.write(self.style.SUCCESS('CBModel loaded successfully'))
+        '''
+        self.stdout.write(self.style.SUCCESS('CBModel  and CFModel loaded successfully'))

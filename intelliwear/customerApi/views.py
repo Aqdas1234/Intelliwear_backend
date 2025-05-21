@@ -347,7 +347,7 @@ class AddToCartView(APIView):
                     cart_item.quantity = new_quantity
                 
                 cart_item.save()
-                '''
+                
                 user = request.user
                 has_order = OrderItem.objects.filter(order__user=user).exists()
                 if has_order:
@@ -370,7 +370,7 @@ class AddToCartView(APIView):
                     else:
                         print("Error: Collaborative filtering model (cf_model) is None")
 
-                    '''
+                    
         except Size.DoesNotExist:
             return Response({"error": "Invalid size selection."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -807,7 +807,7 @@ class PlaceOrderViewStripe(APIView):
                 product_id__in=[item[0] for item in ordered_items], 
                 size_id__in=[item[1] for item in ordered_items]
             ).delete()
-            '''
+            
             cf_model = get_cf_model()
             if cf_model is not None:
                 for pid in interaction_product_ids:
@@ -834,7 +834,7 @@ class PlaceOrderViewStripe(APIView):
                 Recommendation.objects.bulk_create(new_recommendations)
             else:
                 print("Error: Collaborative filtering model (cf_model) is None")
-                '''
+                
             return order
 
 
