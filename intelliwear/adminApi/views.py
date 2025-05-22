@@ -239,10 +239,10 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         img_model = get_image_search_model()
         if img_model is not None:
-            img_model.deleteProduct(instance.id)
-        cf_model = get_cf_model()
-        if cf_model is not None:
-            cf_model.delete_product(product_id)
+            img_model.deleteProduct(product_id)
+        #cf_model = get_cf_model()
+        #if cf_model is not None:
+        #    cf_model.delete_product(product_id)
         return super().destroy(request, *args, **kwargs)
 
 

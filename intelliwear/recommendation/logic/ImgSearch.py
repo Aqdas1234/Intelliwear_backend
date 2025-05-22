@@ -120,25 +120,27 @@ class SearchModel:
             return None
 
     def addToIndex(self, id , vec):
-        
         self.idTovectors[id] = vec.reshape(self.dim)
-        existing_ids = faiss.vector_to_array(self.index.id_map)
-        if existing_ids.size != 0:
-          internal = int(existing_ids.max())+1
-        else :
-          internal = 0
+
+        if self.idMappings:
+            internal = max(self.idMappings.values()) + 1
+        else:
+            internal = 0
 
         self.idMappings[id] = internal
         self.reverseIdMappings[internal] = id
 
-        # print(internal)
-
         vec = vec.reshape(1, self.dim)
         self.index.add_with_ids(vec, np.array([internal], dtype='int64'))
+
         self.saveModel()
         self.saveVectors()
 
+
     def deleteProduct(self,id):
+        if id not in self.idMappings:
+            print(f"[Warning] ID {id} not found in index.")
+            return
         del self.idTovectors[id]
         internal = self.idMappings[id]
         self.index.remove_ids(np.array([internal], dtype='int64'))
@@ -193,7 +195,7 @@ class SearchModel:
 '''
 path = "D:/intelliwear_backend/intelliwear/recommendation/imageSearchData"
 m = SearchModel(path)
-print(m.getVectors('D:/intelliwear_backend/intelliwear/recommendation/logic/2.jpg'))
+print(m.idMappings)
 # res = m.search(root1+test[400],5)
 # res1 = [root+j for j in res]
 # res1.insert(0,root1+test[400])

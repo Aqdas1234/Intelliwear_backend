@@ -258,6 +258,9 @@ class CBModel:
         self.updateMappings(data)
 
     def delete(self, id):
+        if id not in self.product_mapping:
+          print(f"[Warning] Product ID {id} not found in product_mapping. Skipping recommendation deletion.")
+          return 
         df = self.getCsvFile()
         df.loc[self.product_mapping[id], "Status"] = "inactive"
         self.saveCsvFile(df)
