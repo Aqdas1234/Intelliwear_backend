@@ -711,9 +711,16 @@ class PlaceOrderViewStripe(APIView):
 
         try:
             if request.data.get("payment_method") == "cod":
+                shipping_info = {
+                        "name": request.data.get("name", request.user.name),
+                        "city": request.data.get("city", ""),
+                        "address": request.data.get("address", ""),
+                        "phone": request.data.get("phone", "")
+                    }
                 with transaction.atomic():
-                    # Pass request.data (a dict) as shipping_info
-                    order = self.create_order(request.user, checkout_data, total_price, "cod", "Completed", request.data)
+                    order = self.create_order(request.user, checkout_data, total_price, "cod", "Completed", shipping_info)
+                    self.send_order_confirmation(order)
+                    self.send_delivery_notification(order)
                     return Response({"message": "Order placed successfully", "order_id": order.id}, status=status.HTTP_201_CREATED)
 
             elif request.data.get("payment_method") == "stripe":
@@ -748,7 +755,49 @@ class PlaceOrderViewStripe(APIView):
         except Exception as e:
             return Response({"error": f"Order placement failed: {str(e)}"},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    def send_order_confirmation(self, order):
+        subject = f"Order Confirmation - Order #{order.id}"
+        recipient_email = order.user.email
+        email_content = render_to_string("emails/order_confirmation.html", {
+            "user": order.user,
+            "order": order,
+            "order_items": order.items.all(),
+            "total_price": order.total_price
+        })
 
+        send_mail(
+            subject,
+            email_content,
+            settings.DEFAULT_FROM_EMAIL,
+            [recipient_email],
+            fail_silently=False,
+            html_message=email_content  
+        )
+
+    def send_delivery_notification(self, order):
+        subject = f"New Order for Delivery - Order #{order.id}"
+        delivery_email = settings.DELIVERY_PARTNER_EMAIL  
+        email_content = render_to_string("emails/delivery_notification.html", {
+            "order_id": order.id,
+            "user_name": order.user.name,
+            "user_phone": order.user.phone,  
+            "user_email": order.user.email,
+            "shipping_address" : order.shippingaddress ,
+            "order_items" : order.items.all() ,
+            "total_price" : order.total_price  ,
+            "payment_method" : order.payment.payment_method 
+            
+        })
+
+        send_mail(
+            subject,
+            email_content,
+            settings.DEFAULT_FROM_EMAIL,
+            [delivery_email],
+            fail_silently=False,
+            html_message=email_content
+        )
     def create_order(self, user, checkout_data, total_price, payment_method, payment_status, shipping_info, transaction_id=None):
         with transaction.atomic():
             order = Order.objects.create(
@@ -833,7 +882,9 @@ class PlaceOrderViewStripe(APIView):
                 Recommendation.objects.bulk_create(new_recommendations)
             else:
                 print("Error: Collaborative filtering model (cf_model) is None")
-            ''' 
+            '''
+            self.send_order_confirmation(order)
+            self.send_delivery_notification(order) 
             return order
 
 
@@ -882,8 +933,8 @@ class StripeWebhookView(APIView):
                         shipping_data, 
                         session["payment_intent"]
                     )
-                    self.send_order_confirmation(order)
-                    self.send_delivery_notification(order)
+                    #OrderEmailNotifier.send_order_confirmation(order)
+                    #OrderEmailNotifier.send_delivery_notification(order)
             except User.DoesNotExist:
                 return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
@@ -892,48 +943,6 @@ class StripeWebhookView(APIView):
 
         return Response({"message": "Webhook processed successfully"}, status=status.HTTP_200_OK)
     
-    def send_order_confirmation(self, order):
-        subject = f"Order Confirmation - Order #{order.id}"
-        recipient_email = order.user.email
-        email_content = render_to_string("emails/order_confirmation.html", {
-            "user": order.user,
-            "order": order,
-            "order_items": order.items.all(),
-            "total_price": order.total_price
-        })
-
-        send_mail(
-            subject,
-            email_content,
-            settings.DEFAULT_FROM_EMAIL,
-            [recipient_email],
-            fail_silently=False,
-            html_message=email_content  
-        )
-
-    def send_delivery_notification(self, order):
-        subject = f"New Order for Delivery - Order #{order.id}"
-        delivery_email = settings.DELIVERY_PARTNER_EMAIL  
-        email_content = render_to_string("emails/delivery_notification.html", {
-            "order_id": order.id,
-            "user_name": order.user.name,
-            "user_phone": order.user.phone,  
-            "user_email": order.user.email,
-            "shipping_address" : order.shippingaddress ,
-            "order_items" : order.items.all() ,
-            "total_price" : order.total_price  ,
-            "payment_status" : order.payment.payment_status 
-            
-        })
-
-        send_mail(
-            subject,
-            email_content,
-            settings.DEFAULT_FROM_EMAIL,
-            [delivery_email],
-            fail_silently=False,
-            html_message=email_content
-        )
 
 
 
